@@ -1,0 +1,55 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.app
+*.exe
+*.out
+
+*.sln
+*.vcxproj
+*.filters
+*.user
+*.vs
+x64/
+.vscode/
+
+# CMake
+CMakeFiles/
+*.cmake
+CMakeCache.txt
+
+*.win
+*.dev
+*.layout
+*.md
+
+*.pro.user.*
+
+log.txt
+Makefile
