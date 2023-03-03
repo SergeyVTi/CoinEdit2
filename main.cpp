@@ -1,4 +1,5 @@
 #include "coinedit.h"
+#include "coin.h"
 
 #include <QApplication>
 

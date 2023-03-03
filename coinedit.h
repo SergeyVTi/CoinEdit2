@@ -10,6 +10,7 @@
 #endif
 
 #include <QGraphicsView>
+#include "celldialog.h"
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -23,6 +24,7 @@ class QScrollArea;
 class QScrollBar;
 class QScrollArea;
 class QSlider;
+class Coin;
 QT_END_NAMESPACE
 
 constexpr int RADIUS = 40;
@@ -34,15 +36,14 @@ class GraphicsView : public QGraphicsView
 {
     Q_OBJECT
 public:
-    GraphicsView(CoinEdit *v) : QGraphicsView(), view(v) { }
+    GraphicsView(CoinEdit *ce) : QGraphicsView(), coinedit(ce) { }
 
 protected:
-#if QT_CONFIG(wheelevent)
     void wheelEvent(QWheelEvent *) override;
-#endif
+//    void resizeEvent(QResizeEvent *event) override;
 
 private:
-    CoinEdit *view;
+    CoinEdit *coinedit;
 };
 
 class CoinEdit : public QMainWindow
@@ -51,6 +52,14 @@ class CoinEdit : public QMainWindow
 public:
     explicit CoinEdit(QWidget *parent = nullptr);
 //    bool loadFile(const QString &);
+    enum SaveFormat {
+        Json, Binary
+    };
+
+    bool save();
+//    bool save(CoinEdit::SaveFormat saveFormat);
+    bool load();
+//    bool load(CoinEdit::SaveFormat saveFormat);
 
 public slots:
     void zoomIn(int level = 1);
@@ -59,11 +68,13 @@ public slots:
 private slots:
     void newFile();
     void open();
-    bool save();
+//    bool save();
     bool saveAs();
     void print();
     void about();
     void TODO();
+//    void createCellDialog();
+//    void createCellDialog(const QString& cellNum);
 
 private:
     void createActions();
@@ -74,13 +85,19 @@ private:
     void setupMatrix();
     void setupCells();
 
+    void read(const QJsonObject &json);
+    void write(QJsonObject &json);
+
     QGroupBox *vertGroupBox;
     GraphicsView *view;
     QSlider *zoomSlider;
     QHash<QString, QVector<qreal>> cells;
+    QVector<Coin*> cellsVec;
     qreal scaleFactor = 1;
     QVector<int> xSize;
     QVector<int> xStart;
+    CellDialog *cellDialog;
+
 //    QAction *saveAsAct;
 //    QAction *printAct;
 //    QAction *zoomInAct;

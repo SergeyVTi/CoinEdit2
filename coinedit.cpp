@@ -21,18 +21,25 @@
 #include <QSlider>
 #include <QWheelEvent>
 #include <algorithm>
+#include <QGraphicsObject>
 
 void GraphicsView::wheelEvent(QWheelEvent *e)
 {
     if (e->angleDelta().y() > 0)
-        view->zoomIn(8);
+        coinedit->zoomIn(8);
     else
-        view->zoomOut(8);
+        coinedit->zoomOut(8);
     e->accept();
 }
 
+//void GraphicsView::resizeEvent(QResizeEvent *event)
+//{
+//    QGraphicsView::resizeEvent(event);
+//    fitInView(sceneRect(), Qt::KeepAspectRatio);
+//}
+
 CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
-    view(new GraphicsView(this)), zoomSlider(new QSlider)
+    view(new GraphicsView(this)), zoomSlider(new QSlider), cellDialog(new CellDialog(this))
 {
     //Set main layout
     QGroupBox *mainGroupBox = new QGroupBox;
@@ -40,11 +47,7 @@ CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
     setCentralWidget(mainGroupBox);
     mainGroupBox->setLayout(mainLayout);
 
-    //    resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
-
-    //Add left box
-    //    createVertGroupBox();
-    //    mainLayout->addWidget(vertGroupBox);
+//        resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
 
     //Add central widget
     setSectorLines();
@@ -82,6 +85,56 @@ CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
     connect(zoomSlider, &QAbstractSlider::valueChanged, this, &CoinEdit::setupMatrix);
 }
 
+bool CoinEdit::save()
+{
+    SaveFormat saveFormat = SaveFormat::Json;
+
+    QFile saveFile(saveFormat == Json
+          ? QStringLiteral("save.json")
+          : QStringLiteral("save.dat"));
+
+      if (!saveFile.open(QIODevice::WriteOnly)) {
+          qWarning("Couldn't open save file.");
+          return false;
+      }
+
+      QJsonObject dataObject;
+      write(dataObject);
+      saveFile.write(saveFormat == Json
+          ? QJsonDocument(dataObject).toJson()
+          : QCborValue::fromJsonValue(dataObject).toCbor());
+
+      return true;
+}
+
+bool CoinEdit::load()
+{
+    SaveFormat saveFormat = SaveFormat::Json;
+
+    QFile loadFile(saveFormat == Json
+           ? QStringLiteral("save.json")
+           : QStringLiteral("save.dat"));
+
+       if (!loadFile.open(QIODevice::ReadOnly)) {
+           qWarning("Couldn't open save file.");
+           return false;
+       }
+
+       QByteArray saveData = loadFile.readAll();
+
+       QJsonDocument loadDoc(saveFormat == Json
+           ? QJsonDocument::fromJson(saveData)
+           : QJsonDocument(QCborValue::fromCbor(saveData).toMap().toJsonObject()));
+
+       read(loadDoc.object());
+
+       QTextStream(stdout) << "Loaded save for "
+                           << loadDoc["Ячейки"].toString()
+                           << " using "
+                           << (saveFormat != Json ? "CBOR" : "JSON") << "...\n";
+       return true;
+}
+
 void CoinEdit::setupMatrix()
 {
     qreal scale = qPow(qreal(2), (zoomSlider->value() - 250) / qreal(50));
@@ -117,10 +170,10 @@ void CoinEdit::open()
     TODO();
 }
 
-bool CoinEdit::save()
-{
-    TODO();
-}
+//bool CoinEdit::save()
+//{
+//    TODO();
+//}
 
 bool CoinEdit::saveAs()
 {
@@ -133,6 +186,7 @@ void CoinEdit::drawPitak()
     qreal k = 1.2;
     //Add graphics
     QGraphicsScene *scene = new QGraphicsScene(this);
+//    cellDialog = new CellDialog();
 
     int xStep = qSin(qDegreesToRadians(60.0)) * RADIUS + STEP;
     int yStep = RADIUS + qSin(qDegreesToRadians(30.0)) * RADIUS + STEP*1.5;
@@ -172,6 +226,7 @@ void CoinEdit::drawPitak()
     {
         if (xSize[y-1] == 0)
             continue;
+
         QGraphicsLineItem *lineX = new QGraphicsLineItem(-indent, -y*yStep + (RADIUS + STEP)*k,
                                  maxCoinInRow*xStep*2+xStep*3 - 3*STEP +indent, -y*yStep + (RADIUS + STEP)*k);
 
@@ -198,10 +253,17 @@ void CoinEdit::drawPitak()
 
         for(int x = 1; x < xSize[y-1]*2; x += 2)
         {
+            Coin *item = new Coin;
+
             QColor color(Qt::white);
-            Coin *item = new Coin(color, k*RADIUS, STEP);
+            item->setColor(color);
+
+            item->setRadius(k*RADIUS);
+
+            item->setStep(STEP);
 
             item->setPos(QPointF(x*xStep + xStart[y-1]*xStep, -y*yStep));
+
             scene->addItem(item);
         }
     }
@@ -213,27 +275,36 @@ void CoinEdit::drawPitak()
 
         for(int x = 1; x < xSize[y-1]*2; x += 2)
         {
-//            QColor color(rand()%255, rand()%255, rand()%255);
+            Coin *item = new Coin;
+
             QColor color(Qt::white);
+            item->setColor(color);
+
+            item->setRadius(RADIUS);
+
+            item->setStep(STEP);
+
             QString cellNum = (y < 10 ? ("0" + QString::number(y)) : QString::number(y))
                     + "-"
                     + ((x + 6  + xStart[y-1]) < 10 ? ("0" + QString::number(x + 6  + xStart[y-1])) : QString::number(x + 6  + xStart[y-1]));
+            item->setCellNum(cellNum);
 
-        Coin *item;
-        if (cells.contains(cellNum)){
-            item = new Coin(color, RADIUS, STEP, cellNum, cells[cellNum]);
-        }else{
-            item = new Coin(color, RADIUS, STEP, cellNum);
-        }
+            item->setCellDialog(cellDialog);
+
+            if (cells.contains(cellNum))
+                item->setSectors(cells[cellNum]);
 
             item->setPos(QPointF(x*xStep + xStart[y-1]*xStep, -y*yStep));
+
+            item->setLoadingType("Без загрузки");
+            item->setLoadingSubType("Без загрузки");
+
+        cellsVec.append(item);
+
             scene->addItem(item);
         }
 
     }
-
-
-
 
     //    scene->setSceneRect(0,0,1000,1000);
 
@@ -284,6 +355,44 @@ void CoinEdit::setupCells()
     xSize =  {0, 0, 0, 10, 13, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 27, 28, 27, 28, 27, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 16, 13, 10, 0, 0, 0};
     //Отступ ряда
     xStart = {0, 0, 0, 18, 15, 12,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0,  1,  0,  1,  0,  1,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 12, 15, 18, 0, 0, 0};
+}
+
+void CoinEdit::read(const QJsonObject &json)
+{
+    if (json.contains("Ячейки") && json["Ячейки"].isArray()){
+        QJsonArray cellsArray = json["Ячейки"].toArray();
+
+        for(int i = 0; i < cellsVec.size(); i++){
+          QJsonObject cellObject = cellsArray[i].toObject();
+          cellsVec[i]->read(cellObject);
+        }
+//        QHash<QString, Coin*>::iterator i = cellsMap.begin();
+//        size_t ind = 0;
+//        while (i != cellsMap.end()){
+//            QJsonObject cellObject = cellsArray[ind].toObject();
+//            i.value()->read(cellObject);
+//            ind++;
+//        }
+    }
+}
+
+void CoinEdit::write(QJsonObject &json)
+{
+    QJsonArray cellsArray;
+
+    for(auto& coin : cellsVec){
+      QJsonObject cellObject;
+      coin->write(cellObject);
+      cellsArray.append(cellObject);
+    }
+//    QHash<QString, Coin*>::const_iterator i = cellsMap.constBegin();
+//    while (i != cellsMap.constEnd()){
+//        QJsonObject cellObject;
+//        i.value()->write(cellObject);
+//        cellsArray.append(cellObject);
+//    }
+
+    json["Ячейки"] = cellsArray;
 }
 
 //bool CoinEdit::loadFile(const QString &fileName)
@@ -381,12 +490,6 @@ void CoinEdit::zoomOut(int level)
     zoomSlider->setValue(zoomSlider->value() - level);
 }
 
-//void CoinEdit::normalSize()
-//{
-//    imageLabel->adjustSize();
-//    scaleFactor = 1.0;
-//}
-
 //void CoinEdit::fitToWindow()
 //{
 //    bool fitToWindow = fitToWindowAct->isChecked();
@@ -425,6 +528,12 @@ void CoinEdit::TODO()
 
     message.exec();
 }
+
+//void CoinEdit::createCellDialog()
+////void CoinEdit::createCellDialog(const QString &cellNum)
+//{
+////   cellDialog = new CellDialog(this);
+//}
 
 void CoinEdit::createActions()
 {

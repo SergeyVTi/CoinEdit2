@@ -4,23 +4,17 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QtMath>
+#include <QGraphicsScene>
 
-Coin::Coin(const QColor &color, const int radius, const int step, const QString cellNum, const QVector<qreal> sectors)
+Coin::Coin() : QGraphicsObject()
 {
-    this->radius = radius;
-    this->color = color;
-    this->cellNum = cellNum;
-    this->step = step;
-    this->sectors = sectors;
-//    setZValue((x + y) % 2);
-
     setFlags(ItemIsSelectable | ItemIsMovable);
     setAcceptHoverEvents(true);
+
 }
 
 QRectF Coin::boundingRect() const
 {
-//    return QRectF(QPointF(-1*(radius+step),(radius+step)),QPointF((radius+step),-1*(radius+step)));
     return QRectF(0, 0, (radius+step)*2.1, (radius+step)*2.1);
 }
 
@@ -37,13 +31,13 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
     painter->setRenderHint(QPainter::Antialiasing, true);
 //    this->painter = painter;
 
-    if (cellNum.size() == 0){
+    if (cellNum_.size() == 0){
 //        QPen oldPen = painter->pen();
 //        QPen pen = painter->pen();
 //        pen.setBrush(QBrush(Qt::red));
 
 //        QBrush b = painter->brush();
-        painter->setBrush(QBrush(color));
+        painter->setBrush(QBrush(color_));
 //        painter->setPen(QPen(QBrush(Qt::red), step, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter->setPen(Qt::NoPen);
 
@@ -61,9 +55,11 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
 
         return;
     }
+    //
+    //if (option->state & QStyle::State_Selected)
 
     //Highlighter
-    QColor fillColor = (option->state & QStyle::State_Selected) ? color.darker(150) : color;
+    QColor fillColor = (option->state & QStyle::State_Selected) ? color_.darker(150) : color_;
     if (option->state & QStyle::State_MouseOver)
         fillColor = fillColor.lighter(125);
 
@@ -71,7 +67,7 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
     QPen pen = oldPen;
     int width = 0;
     if (option->state & QStyle::State_Selected)
-        width += 2;
+        width += 2;//
 
     pen.setWidth(width);
     QBrush b = painter->brush();
@@ -101,7 +97,7 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
         {
             qreal fAngle1 = qDegreesToRadians(30.0 + 360.0 * sectors[i] / n);
             qreal x1 = 1.2*(radius+step + keff) + qCos(fAngle1) * (radius + keff + step);
-//            qreal x1 = 1.2*(radius+step) + qCos(fAngle1) * ((1.2*radius - radius)/2 + radius + 1);
+            //            qreal x1 = 1.2*(radius+step) + qCos(fAngle1) * ((1.2*radius - radius)/2 + radius + 1);
             qreal y1 = 1.2*(radius+step + keff) + qSin(fAngle1) * (radius + keff + step);
             QPointF p1 = QPointF(x1, y1);
 
@@ -119,12 +115,14 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
     painter->setPen(pen);
     painter->setFont(font);
     QRectF rectangle = QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2);
-    painter->drawText(QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignCenter, cellNum, &rectangle);
+    painter->drawText(QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignCenter, cellNum_, &rectangle);
 }
 
 void Coin::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     QGraphicsItem::mousePressEvent(event);
+//    scene()->clearSelection();
+//    setSelected(true);
     update();
 }
 
@@ -141,5 +139,98 @@ void Coin::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 void Coin::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     QGraphicsItem::mouseReleaseEvent(event);
+
+//    cellDialog->setCellNumLabel(cellNum_);
+//    cellDialog->setCellNumLabel(this);
+
+    emit updateDialog(this);
+    cellDialog->show();
     update();
+}
+
+const QString &Coin::loadingSubType() const
+{
+    return loadingSubType_;
+}
+
+void Coin::setLoadingSubType(const QString &newLoadingSubType)
+{
+    emit loadingSubTypeChanged(newLoadingSubType, loadingSubType_);
+
+    loadingSubType_ = newLoadingSubType;
+}
+
+void Coin::read(const QJsonObject &json)
+{
+    if (json.contains(cellNum_) && json[cellNum_].isArray()){
+        QJsonArray cellData = json[cellNum_].toArray();
+        loadingType_ = cellData.at(0).toString();
+        loadingSubType_ = cellData.at(1).toString();
+    }
+}
+
+void Coin::write(QJsonObject &json)
+{
+    QJsonArray cellData = {
+        loadingType_,
+        loadingSubType_
+    };
+
+    json[cellNum_] = cellData;
+}
+
+const QString &Coin::loadingType() const
+{
+    return loadingType_;
+}
+
+void Coin::setLoadingType(const QString &newLoadingType)
+{
+    emit loadingTypeChanged(newLoadingType, loadingType_);
+
+    loadingType_ = newLoadingType;
+}
+
+void Coin::setSectors(const QVector<qreal> &newSectors)
+{
+    sectors = newSectors;
+}
+
+void Coin::setCellDialog(CellDialog *newCellDialog)
+{
+    cellDialog = newCellDialog;
+
+    connect(this, &Coin::updateDialog, cellDialog, &CellDialog::updateDialog);
+    connect(this, &Coin::loadingTypeChanged, cellDialog, &CellDialog::loadingTypeChanged);
+    connect(this, &Coin::loadingSubTypeChanged, cellDialog, &CellDialog::loadingSubTypeChanged);
+}
+
+const QString &Coin::cellNum() const
+{
+    return cellNum_;
+}
+
+void Coin::setCellNum(const QString &newCellNum)
+{
+    cellNum_ = newCellNum;
+}
+
+void Coin::setStep(int newStep)
+{
+    step = newStep;
+}
+
+void Coin::setRadius(int newRadius)
+{
+    radius = newRadius;
+}
+
+const QColor &Coin::color() const
+{
+    return color_;
+}
+
+void Coin::setColor(const QColor &newColor)
+{
+    color_ = newColor;
 }

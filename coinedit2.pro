@@ -1,6 +1,6 @@
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets gui printsupport
+greaterThan(QT_MAJOR_VERSION, 4.5): QT += widgets gui printsupport
 
 CONFIG += c++17
 
@@ -9,11 +9,13 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    celldialog.cpp \
     coin.cpp \
     coinedit.cpp \
     main.cpp
 
 HEADERS += \
+    celldialog.h \
     coin.h \
     coinedit.h
 
