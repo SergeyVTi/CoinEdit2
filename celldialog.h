@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <QDialog>
+#include <QRegularExpression>
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -15,6 +16,8 @@ class QTextEdit;
 class QVBoxLayout;
 class QComboBox;
 class Coin;
+class QGraphicsView;
+class QGraphicsScene;
 QT_END_NAMESPACE
 
 class CellDialog : public QDialog
@@ -23,13 +26,18 @@ class CellDialog : public QDialog
 public:
     CellDialog(QWidget *parent = nullptr);
 
+    void setAllCells(const QHash<QString, Coin *> &newAllCells);
+
 public slots:
     void updateDialog(Coin *cell);
-    void loadingTypeChanged(const QString &newLoadingType, const QString &oldLoadingType = "");
-    void loadingSubTypeChanged(const QString &newLoadingSubType, const QString &oldLoadingSubType = "");
     void updateCellData();
-//private slots:
+private slots:
     void changeSubTypes(const QString &type);
+    void editorTextChanged();
+    void addMultipleCellsButtonClicked();
+
+signals:
+    void updateStats(QHash<QString, size_t> &typeCounter, QHash<QString, size_t> &subTypeCounter);
 
 private:
     void cellData();
@@ -37,7 +45,7 @@ private:
     void stats();
     void colors();
 
-    QVBoxLayout *vLayout;
+    QVBoxLayout *mainLayout;
     QGroupBox *changeCellLoading;
     QLabel *cellNumLabel;
     QLabel *cellLoadingLabel;
@@ -46,10 +54,19 @@ private:
     QComboBox *comboLoadingType;
     QComboBox *comboLoadingSubType;
     QDialogButtonBox *buttonBox;
+    QPushButton *addMultipleCellsButton;
+    QTextEdit *editor;
+    QGraphicsView *view;
+    QGraphicsScene *scene;
+    Coin *coin;
+    QPushButton *colorButton;
+    QColor color;
 
     QHash<QString, size_t> typeCounter_;
     QHash<QString, size_t> subTypeCounter_;
     QHash<QString, QStringList> loadingTypes_;
+    QHash<QString, Coin*> allCells_;
+    QStringList changeList;
     Coin *currentCell_;
 };
 

@@ -1,4 +1,5 @@
 ﻿#include "coin.h"
+#include "graphics.h"
 
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -8,7 +9,7 @@
 
 Coin::Coin() : QGraphicsObject()
 {
-    setFlags(ItemIsSelectable | ItemIsMovable);
+    setFlags(ItemIsSelectable);// | ItemIsMovable
     setAcceptHoverEvents(true);
 
 }
@@ -110,20 +111,33 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
         }
     }
 
-    QFont font("Times", 10, QFont::Normal, false);
-    pen.setColor(Qt::black);
-    painter->setPen(pen);
-    painter->setFont(font);
-    QRectF rectangle = QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2);
-    painter->drawText(QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignCenter, cellNum_, &rectangle);
+//    QFont font("Times", 10, QFont::Normal, false);
+//    QFont font;
+//    font.setStyleHint(QFont::Times);
+//    font.setStyleStrategy(QFont::PreferDevice);
+//    font.setPointSizeF(1);
+
+//    pen.setColor(Qt::black);
+//    painter->setPen(pen);
+//    painter->setFont(font);
+//    QRectF rectangle = QRectF(0, 0, (1.2*radius+step)*3, (1.2*radius+step)*3);
+//    painter->drawText(QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignCenter, cellNum_, &rectangle);
+//    painter->drawText(QRectF(radius, radius, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignJustify, cellNum_, &rectangle);
 }
 
 void Coin::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
-    QGraphicsItem::mousePressEvent(event);
-//    scene()->clearSelection();
+//    QGraphicsItem::mousePressEvent(event);
+    qDebug() << "coin mousePressEvent";
+    qDebug() << cellNum();
 //    setSelected(true);
-    update();
+//    scene_->mousePressEvent(event);
+    if (cellDialog){
+        emit updateDialog(this);
+        cellDialog->show();
+        update();
+    }
+//    update();
 }
 
 void Coin::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
@@ -138,14 +152,19 @@ void Coin::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 
 void Coin::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+    qDebug() << "coin mouseReleaseEvent";
+    qDebug() << cellNum();
     QGraphicsItem::mouseReleaseEvent(event);
 
-//    cellDialog->setCellNumLabel(cellNum_);
-//    cellDialog->setCellNumLabel(this);
 
-    emit updateDialog(this);
-    cellDialog->show();
-    update();
+//    emit updateDialog(this);
+//    cellDialog->show();
+//    update();
+}
+
+void Coin::setScene(GraphicsScene *newScene)
+{
+    scene_ = newScene;
 }
 
 const QString &Coin::loadingSubType() const
@@ -155,7 +174,7 @@ const QString &Coin::loadingSubType() const
 
 void Coin::setLoadingSubType(const QString &newLoadingSubType)
 {
-    emit loadingSubTypeChanged(newLoadingSubType, loadingSubType_);
+//    emit loadingSubTypeChanged(newLoadingSubType, loadingSubType_);
 
     loadingSubType_ = newLoadingSubType;
 }
@@ -166,6 +185,7 @@ void Coin::read(const QJsonObject &json)
         QJsonArray cellData = json[cellNum_].toArray();
         loadingType_ = cellData.at(0).toString();
         loadingSubType_ = cellData.at(1).toString();
+        color_ = cellData.at(2).toString();
     }
 }
 
@@ -173,7 +193,8 @@ void Coin::write(QJsonObject &json)
 {
     QJsonArray cellData = {
         loadingType_,
-        loadingSubType_
+        loadingSubType_,
+        color_.name()
     };
 
     json[cellNum_] = cellData;
@@ -186,7 +207,7 @@ const QString &Coin::loadingType() const
 
 void Coin::setLoadingType(const QString &newLoadingType)
 {
-    emit loadingTypeChanged(newLoadingType, loadingType_);
+//    emit loadingTypeChanged(newLoadingType, loadingType_);
 
     loadingType_ = newLoadingType;
 }
@@ -201,8 +222,8 @@ void Coin::setCellDialog(CellDialog *newCellDialog)
     cellDialog = newCellDialog;
 
     connect(this, &Coin::updateDialog, cellDialog, &CellDialog::updateDialog);
-    connect(this, &Coin::loadingTypeChanged, cellDialog, &CellDialog::loadingTypeChanged);
-    connect(this, &Coin::loadingSubTypeChanged, cellDialog, &CellDialog::loadingSubTypeChanged);
+//    connect(this, &Coin::loadingTypeChanged, cellDialog, &CellDialog::loadingTypeChanged);
+//    connect(this, &Coin::loadingSubTypeChanged, cellDialog, &CellDialog::loadingSubTypeChanged);
 }
 
 const QString &Coin::cellNum() const

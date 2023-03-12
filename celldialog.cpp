@@ -1,12 +1,14 @@
-
+﻿
 #include "celldialog.h"
 #include "coin.h"
 
-CellDialog::CellDialog(QWidget *parent) : QDialog(parent)
+CellDialog::CellDialog(QWidget *parent) : QDialog(parent), view(new QGraphicsView(this)),
+                                scene(new QGraphicsScene(this)), coin(new Coin)
 {
 //    gridLayout = new QGridLayout;
-    vLayout = new QVBoxLayout;
-    setLayout(vLayout);
+    mainLayout = new QVBoxLayout;
+    mainLayout->setSizeConstraint(QLayout::SetFixedSize);
+    setLayout(mainLayout);
 
     cellData();
     changeLoading();
@@ -19,7 +21,7 @@ CellDialog::CellDialog(QWidget *parent) : QDialog(parent)
     connect(buttonBox, &QDialogButtonBox::accepted, this, &CellDialog::updateCellData);
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    vLayout->addWidget(buttonBox,0,Qt::AlignHCenter);
+    mainLayout->addWidget(buttonBox,0,Qt::AlignHCenter);
 
     setWindowTitle("Свойства ячейки");
 
@@ -30,15 +32,26 @@ CellDialog::CellDialog(QWidget *parent) : QDialog(parent)
 
 void CellDialog::cellData()
 {
-    QHBoxLayout *cellLayout = new QHBoxLayout;
+    QGridLayout *cellLayout = new QGridLayout;
 
     QGroupBox *cellNum = new QGroupBox("Номер ячейки");
-    QHBoxLayout *cellNumLayout = new QHBoxLayout;
+    QGridLayout *cellNumLayout = new QGridLayout;
     cellNum->setLayout(cellNumLayout);
     cellNumLabel = new QLabel("Номер ячейки");
-    cellNumLayout->addWidget(cellNumLabel);
+    cellNumLayout->addWidget(cellNumLabel,0,0);
 
-    cellLayout->addWidget(cellNum);
+    addMultipleCellsButton = new QPushButton("+");
+    addMultipleCellsButton->setFixedSize(20,20);
+    cellNumLayout->addWidget(addMultipleCellsButton,0,1,Qt::AlignRight);
+
+    editor = new QTextEdit();
+    editor->hide();
+    cellNumLayout->addWidget(editor,1,0,1,2);
+
+    connect(addMultipleCellsButton, &QPushButton::clicked, this, &CellDialog::addMultipleCellsButtonClicked);
+    connect(editor, &QTextEdit::textChanged, this, &CellDialog::editorTextChanged);
+
+    cellLayout->addWidget(cellNum,0,0,1,1);
 
     QGroupBox *cellLoading = new QGroupBox("Загрузка");
     QHBoxLayout *cellLoadingLayout = new QHBoxLayout;
@@ -46,9 +59,9 @@ void CellDialog::cellData()
     cellLoadingLabel = new QLabel("Загрузка ячейки");
     cellLoadingLayout->addWidget(cellLoadingLabel);
 
-    cellLayout->addWidget(cellLoading);
+    cellLayout->addWidget(cellLoading,1,0,1,1);
 
-    vLayout->addLayout(cellLayout);
+    mainLayout->addLayout(cellLayout);
 }
 
 void CellDialog::changeLoading()
@@ -62,27 +75,28 @@ void CellDialog::changeLoading()
     loadingTypes_["Без загрузки"] = QStringList({});
 
     changeCellLoading = new QGroupBox("Изменить загрузку");
-    QHBoxLayout *changeCellLoadingLayout = new QHBoxLayout;
+//    QHBoxLayout *changeCellLoadingLayout = new QHBoxLayout;
+    QGridLayout *changeCellLoadingLayout = new QGridLayout;
     changeCellLoading->setLayout(changeCellLoadingLayout);
 
     QLabel *type1 = new QLabel("Тип кассеты");
-    changeCellLoadingLayout->addWidget(type1);
+    changeCellLoadingLayout->addWidget(type1,0,0,1,1);
 
     comboLoadingType = new QComboBox;
 //    comboLoadingType->insertItems(0,loadingTypes_);
     comboLoadingType->insertItems(0, loadingTypes_.keys());
-    changeCellLoadingLayout->addWidget(comboLoadingType);
+    changeCellLoadingLayout->addWidget(comboLoadingType,0,1,1,1);
 
     connect(comboLoadingType, &QComboBox::currentTextChanged, this, &CellDialog::changeSubTypes);
 
     QLabel *type2 = new QLabel("Тип ЦС");
-    changeCellLoadingLayout->addWidget(type2);
+    changeCellLoadingLayout->addWidget(type2,1,0,1,1);
 
     comboLoadingSubType = new QComboBox;
-    changeCellLoadingLayout->addWidget(comboLoadingSubType);
+    changeCellLoadingLayout->addWidget(comboLoadingSubType,1,1,1,1);
     comboLoadingSubType->insertItems(0, loadingTypes_[comboLoadingType->currentText()]);
 
-    vLayout->addWidget(changeCellLoading);
+    mainLayout->addWidget(changeCellLoading);
 
 }
 
@@ -104,7 +118,7 @@ void CellDialog::stats()
     statsLabel11 = new QLabel("Кол-во");
     statsLayout->addWidget(statsLabel11,1,1);
 
-    vLayout->addWidget(stats);
+    mainLayout->addWidget(stats);
 }
 
 void CellDialog::colors()
@@ -113,48 +127,82 @@ void CellDialog::colors()
     QGridLayout *colLayout = new QGridLayout;
     col->setLayout(colLayout);
 
-    QLabel *colLabel00 = new QLabel("Вид");
-    colLayout->addWidget(colLabel00,0,0);
+//    GraphicsScene *scene = new QGraphicsScene(this);
+    colLayout->addWidget(view,0,0);
+//    if(currentCell_){
+//        Coin *coin = currentCell_;
+//        coin->setPos(0,0);
+//    }
 
-    vLayout->addWidget(col);
+    coin->setRadius(40);
+    coin->setStep(0);
+    coin->setPos(0, 0);
+    coin->setFlag(QGraphicsItem::ItemIsSelectable, false);
+    scene->addItem(coin);
+
+//    scene->setSceneRect(0,0,90,100);
+
+    view->setScene(scene);
+    view->setSceneRect(0,0,95,95);
+//    view->centerOn(coin);
+
+//    QLabel *colLabel00 = new QLabel("Вид");
+//    colLayout->addWidget(colLabel00,0,0);
+    colorButton = new QPushButton("Цвет");
+    connect(colorButton, &QPushButton::clicked, [&]{
+        color = QColorDialog::getColor();
+        if (color.isValid())
+            coin->setColor(color);
+    });
+
+    colLayout->addWidget(colorButton,0,1);
+
+    mainLayout->addWidget(col);
+}
+
+void CellDialog::setAllCells(const QHash<QString, Coin *> &newAllCells)
+{
+    allCells_ = newAllCells;
 }
 
 void CellDialog::updateDialog(Coin *cell)
 {
+    qDebug() << "updateDialog";
+
     currentCell_ = cell;
+    color = cell->color();
 
     cellNumLabel->setText(cell->cellNum());
     cellLoadingLabel->setText(cell->loadingSubType());
 
+    emit updateStats(typeCounter_, subTypeCounter_);
+
     statsLabel01->setText(QString::number(typeCounter_[cell->loadingType()]));
     statsLabel11->setText(QString::number(subTypeCounter_[cell->loadingSubType()]));
-}
 
-void CellDialog::loadingTypeChanged(const QString &newLoadingType, const QString &oldLoadingType)
-{
-    typeCounter_[newLoadingType]++;
-
-    if (!oldLoadingType.isEmpty())
-        typeCounter_[oldLoadingType]--;
-}
-
-void CellDialog::loadingSubTypeChanged(const QString &newLoadingSubType, const QString &oldLoadingSubType)
-{
-    subTypeCounter_[newLoadingSubType]++;
-
-    if (!oldLoadingSubType.isEmpty())
-        subTypeCounter_[oldLoadingSubType]--;
+    coin->setColor(cell->color());
+    coin->setCellNum(cell->cellNum());
+    coin->update();
 }
 
 void CellDialog::updateCellData()
 {
+    qDebug() << "updateCellData";
+
     QString loadingType = comboLoadingType->currentText();
     QString loadingSubType = comboLoadingType->currentText() + " " + comboLoadingSubType->currentText();
 
-    currentCell_->setLoadingType(loadingType);
-    currentCell_->setLoadingSubType(loadingSubType);
+    if (changeList.isEmpty())
+        changeList.append(currentCell_->cellNum());
 
-    updateDialog(currentCell_);
+    for(auto& cell : changeList){
+       allCells_[cell]->setLoadingType(loadingType);
+       allCells_[cell]->setLoadingSubType(loadingSubType);
+       allCells_[cell]->setColor(color);
+       allCells_[cell]->update();
+    }
+
+    updateDialog(allCells_[*changeList.begin()]);
 }
 
 void CellDialog::changeSubTypes(const QString &type)
@@ -162,5 +210,69 @@ void CellDialog::changeSubTypes(const QString &type)
     comboLoadingSubType->clear();
 
     comboLoadingSubType->insertItems(0, loadingTypes_[type]);
+}
+
+void CellDialog::editorTextChanged()
+{//11-13, 13-43, 55-55, 13-42 123-23, 231423-123123, 9-44, 44-44, 23-123
+    //19-34, 19-36, 19-38
+    qDebug() << "editorTextChanged";
+
+    QRegularExpression regEx("([^0-9]|^)(?<cell>\\d\\d-\\d\\d)([^0-9]|$)");
+    QString text = editor->toPlainText();
+
+    changeList.clear();
+    QRegularExpressionMatchIterator i = regEx.globalMatch(text);
+    while (i.hasNext()) {
+         QRegularExpressionMatch match = i.next();
+         QString word = match.captured("cell");
+         if (changeList.contains(word)){
+             cellLoadingLabel->setText("Ошибка: " + word);
+             changeList.clear();
+             return;
+         }
+         changeList << word;
+     }
+
+    QHash<QString, size_t> typeCounter;
+
+    for(auto& cell : changeList){
+        qDebug() << cell;
+        if (!allCells_[cell]){
+            cellLoadingLabel->setText("Ошибка: " + cell);
+            changeList.clear();
+            return;
+        }
+        typeCounter[allCells_[cell]->loadingSubType()]++;
+    }
+
+    QString statsMessage;
+    QHash<QString, size_t>::iterator it = typeCounter.begin();
+    size_t total = 0;
+    while (it != typeCounter.end()) {
+        statsMessage += it.key() + " - " + QString::number(it.value()) + " шт;\n";
+        total += it.value();
+        ++it;
+    }
+    statsMessage += "Всего: " + QString::number(total) + " шт.";
+
+    cellLoadingLabel->setText(statsMessage);
+}
+
+void CellDialog::addMultipleCellsButtonClicked()
+{
+    changeList.clear();
+
+    if (editor->isHidden()){
+        cellNumLabel->hide();
+        editor->show();
+        addMultipleCellsButton->setText("-");
+        addMultipleCellsButton->setToolTip("Скрыть");
+        editorTextChanged();
+    }else{
+        cellNumLabel->show();
+        editor->hide();
+        addMultipleCellsButton->setText("+");
+        addMultipleCellsButton->setToolTip("Выбрать несколько ячеек");
+    }
 }
 
