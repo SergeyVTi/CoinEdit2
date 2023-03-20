@@ -5,6 +5,7 @@
 #include "celldialog.h"
 
 QT_BEGIN_NAMESPACE
+class GraphicsScene;
 QT_END_NAMESPACE
 
 
@@ -20,8 +21,10 @@ public:
 
 signals:
     void updateDialog(Coin *thisCell);
-    void loadingTypeChanged(const QString &newLoadingType, const QString &oldLoadingType = "");
-    void loadingSubTypeChanged(const QString &newLoadingSubType, const QString &oldLoadingSubType = "");
+    void mousePressEv(QMouseEvent *);
+    void printCellNum(const QString &cellNum);
+//    void loadingTypeChanged(const QString &newLoadingType, const QString &oldLoadingType = "");
+//    void loadingSubTypeChanged(const QString &newLoadingSubType, const QString &oldLoadingSubType = "");
 
 public:
     const QColor &color() const;
@@ -42,6 +45,8 @@ public:
     void read(const QJsonObject &json);
     void write(QJsonObject &json);
 
+    void setScene(GraphicsScene *newScene);
+
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
@@ -54,9 +59,11 @@ private:
     QVector<qreal> sectors;
     CellDialog *cellDialog;
     QVector<QPointF> stuff;
+    GraphicsScene *scene_;
 
     QString cellNum_;
     QString loadingType_;
     QString loadingSubType_;
+
 };
 

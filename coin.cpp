@@ -1,4 +1,5 @@
 ﻿#include "coin.h"
+#include "graphics.h"
 
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -8,7 +9,7 @@
 
 Coin::Coin() : QGraphicsObject()
 {
-    setFlags(ItemIsSelectable | ItemIsMovable);
+    setFlags(ItemIsSelectable);// | ItemIsMovable
     setAcceptHoverEvents(true);
 
 }
@@ -29,16 +30,14 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
 {
     Q_UNUSED(widget);
     painter->setRenderHint(QPainter::Antialiasing, true);
-//    this->painter = painter;
+
+    int width = 1;
+    QPen pen(QBrush(Qt::black), width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QBrush brush(color_);
+    QColor fillColor = color_;
 
     if (cellNum_.size() == 0){
-//        QPen oldPen = painter->pen();
-//        QPen pen = painter->pen();
-//        pen.setBrush(QBrush(Qt::red));
-
-//        QBrush b = painter->brush();
-        painter->setBrush(QBrush(color_));
-//        painter->setPen(QPen(QBrush(Qt::red), step, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->setBrush(brush);
         painter->setPen(Qt::NoPen);
 
         const int n = 6;
@@ -55,23 +54,27 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
 
         return;
     }
-    //
-    //if (option->state & QStyle::State_Selected)
 
     //Highlighter
-    QColor fillColor = (option->state & QStyle::State_Selected) ? color_.darker(150) : color_;
+//    QColor fillColor = (option->state & QStyle::State_Selected) ? color_.darker(150) : color_;
     if (option->state & QStyle::State_MouseOver)
         fillColor = fillColor.lighter(125);
 
-    QPen oldPen = painter->pen();
-    QPen pen = oldPen;
-    int width = 0;
-    if (option->state & QStyle::State_Selected)
-        width += 2;//
+    if (option->state & QStyle::State_MouseOver){
+        pen.setColor(Qt::blue);
+        pen.setWidth(width+1);
+        painter->setPen(pen);
+    }
 
-    pen.setWidth(width);
-    QBrush b = painter->brush();
-    painter->setBrush(QBrush(fillColor.darker(option->state & QStyle::State_Sunken ? 120 : 100)));
+//    pen.setColor(Qt::black);
+//    pen.setWidth(width);
+//    pen.setJoinStyle(Qt::RoundJoin);
+
+//    painter->setPen(QPen(QBrush(Qt::black), width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter->setPen(pen);
+//    painter->setBrush(QBrush(fillColor.darker(option->state & QStyle::State_Sunken ? 120 : 100)));
+    brush.setColor(fillColor);
+    painter->setBrush(brush);
 
     const int n = 6;
     QPointF a[n];
@@ -87,17 +90,14 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
     painter->drawPolygon(a, n);
 
     //Draw sector lines
+    painter->setPen(QPen(QBrush(Qt::black), 1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+
     if (sectors.size() != 0){
-        pen.setWidth(2);
-        pen.setColor(Qt::black);
-        pen.setCapStyle(Qt::RoundCap);
-        painter->setPen(pen);
         qreal keff = 0;
         for (int i = 0; i < sectors.size() - 1; i+=2)
         {
             qreal fAngle1 = qDegreesToRadians(30.0 + 360.0 * sectors[i] / n);
             qreal x1 = 1.2*(radius+step + keff) + qCos(fAngle1) * (radius + keff + step);
-            //            qreal x1 = 1.2*(radius+step) + qCos(fAngle1) * ((1.2*radius - radius)/2 + radius + 1);
             qreal y1 = 1.2*(radius+step + keff) + qSin(fAngle1) * (radius + keff + step);
             QPointF p1 = QPointF(x1, y1);
 
@@ -110,42 +110,50 @@ void Coin::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWid
         }
     }
 
-    QFont font("Times", 10, QFont::Normal, false);
-    pen.setColor(Qt::black);
-    painter->setPen(pen);
-    painter->setFont(font);
-    QRectF rectangle = QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2);
-    painter->drawText(QRectF(0, 0, (1.2*radius+step)*2, (1.2*radius+step)*2), Qt::AlignCenter, cellNum_, &rectangle);
 }
 
 void Coin::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
-    QGraphicsItem::mousePressEvent(event);
-//    scene()->clearSelection();
+//    QGraphicsItem::mousePressEvent(event);
+//    qDebug() << "coin mousePressEvent";
+//    qDebug() << cellNum();
+
+    if (event->button() == Qt::RightButton && cellDialog){
+        color_ = color_.darker(150);
+        update();
+    }
 //    setSelected(true);
-    update();
+//    scene_->mousePressEvent(event);
+//    if (cellDialog){
+//        emit updateDialog(this);
+//        cellDialog->show();
+//        update();
+//    }
 }
 
-void Coin::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
+void Coin::mouseMoveEvent(QGraphicsSceneMouseEvent *)
 {
-    if (event->modifiers() & Qt::ShiftModifier) {
-        stuff << event->pos();
-        update();
-        return;
-    }
-    QGraphicsItem::mouseMoveEvent(event);
+//    qDebug() << cellNum_;
+    emit printCellNum(cellNum_);
 }
 
 void Coin::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
-    QGraphicsItem::mouseReleaseEvent(event);
+//    qDebug() << "coin mouseReleaseEvent";
+//    qDebug() << cellNum();
+//    QGraphicsItem::mouseReleaseEvent(event);
 
-//    cellDialog->setCellNumLabel(cellNum_);
-//    cellDialog->setCellNumLabel(this);
+    if (event->button() == Qt::RightButton && cellDialog){
+        color_ = color_.lighter(150);
+        emit updateDialog(this);
+        cellDialog->show();
+        update();
+    }
+}
 
-    emit updateDialog(this);
-    cellDialog->show();
-    update();
+void Coin::setScene(GraphicsScene *newScene)
+{
+    scene_ = newScene;
 }
 
 const QString &Coin::loadingSubType() const
@@ -155,7 +163,7 @@ const QString &Coin::loadingSubType() const
 
 void Coin::setLoadingSubType(const QString &newLoadingSubType)
 {
-    emit loadingSubTypeChanged(newLoadingSubType, loadingSubType_);
+//    emit loadingSubTypeChanged(newLoadingSubType, loadingSubType_);
 
     loadingSubType_ = newLoadingSubType;
 }
@@ -166,6 +174,7 @@ void Coin::read(const QJsonObject &json)
         QJsonArray cellData = json[cellNum_].toArray();
         loadingType_ = cellData.at(0).toString();
         loadingSubType_ = cellData.at(1).toString();
+        color_ = cellData.at(2).toString();
     }
 }
 
@@ -173,7 +182,8 @@ void Coin::write(QJsonObject &json)
 {
     QJsonArray cellData = {
         loadingType_,
-        loadingSubType_
+        loadingSubType_,
+        color_.name()
     };
 
     json[cellNum_] = cellData;
@@ -186,7 +196,7 @@ const QString &Coin::loadingType() const
 
 void Coin::setLoadingType(const QString &newLoadingType)
 {
-    emit loadingTypeChanged(newLoadingType, loadingType_);
+//    emit loadingTypeChanged(newLoadingType, loadingType_);
 
     loadingType_ = newLoadingType;
 }
@@ -201,8 +211,8 @@ void Coin::setCellDialog(CellDialog *newCellDialog)
     cellDialog = newCellDialog;
 
     connect(this, &Coin::updateDialog, cellDialog, &CellDialog::updateDialog);
-    connect(this, &Coin::loadingTypeChanged, cellDialog, &CellDialog::loadingTypeChanged);
-    connect(this, &Coin::loadingSubTypeChanged, cellDialog, &CellDialog::loadingSubTypeChanged);
+//    connect(this, &Coin::loadingTypeChanged, cellDialog, &CellDialog::loadingTypeChanged);
+//    connect(this, &Coin::loadingSubTypeChanged, cellDialog, &CellDialog::loadingSubTypeChanged);
 }
 
 const QString &Coin::cellNum() const

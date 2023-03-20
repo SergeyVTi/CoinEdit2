@@ -10,7 +10,9 @@
 #endif
 
 #include <QGraphicsView>
+#include <QUrl>
 #include "celldialog.h"
+#include "texteditor.h"
 
 QT_BEGIN_NAMESPACE
 class QAction;
@@ -25,26 +27,12 @@ class QScrollBar;
 class QScrollArea;
 class QSlider;
 class Coin;
+class GraphicsView;
+class GraphicsScene;
 QT_END_NAMESPACE
 
 constexpr int RADIUS = 40;
 constexpr int STEP = 4;
-
-class CoinEdit;
-
-class GraphicsView : public QGraphicsView
-{
-    Q_OBJECT
-public:
-    GraphicsView(CoinEdit *ce) : QGraphicsView(), coinedit(ce) { }
-
-protected:
-    void wheelEvent(QWheelEvent *) override;
-//    void resizeEvent(QResizeEvent *event) override;
-
-private:
-    CoinEdit *coinedit;
-};
 
 class CoinEdit : public QMainWindow
 {
@@ -56,23 +44,24 @@ public:
         Json, Binary
     };
 
-    bool save();
 //    bool save(CoinEdit::SaveFormat saveFormat);
-    bool load();
 //    bool load(CoinEdit::SaveFormat saveFormat);
 
 public slots:
-    void zoomIn(int level = 1);
-    void zoomOut(int level = 1);
+    void zoomIn(int level = 8);
+    void zoomOut(int level = 8);
 
 private slots:
-    void newFile();
+//    void newFile();
+    void save();
+    void saveAs();
     void open();
-//    bool save();
-    bool saveAs();
-    void print();
+    void print(QPrinter *printer);
+    void printPreview();
     void about();
     void TODO();
+    void updateStats(QHash<QString, size_t> &typeCounter, QHash<QString, size_t> &subTypeCounter);
+    void addPdf();
 //    void createCellDialog();
 //    void createCellDialog(const QString& cellNum);
 
@@ -81,22 +70,35 @@ private:
     void createVertGroupBox();
     void drawPitak();
     void setSectorLines();
-    void scaleImage(double factor);
+//    void scaleImage(double factor);
     void setupMatrix();
     void setupCells();
 
     void read(const QJsonObject &json);
     void write(QJsonObject &json);
 
-    QGroupBox *vertGroupBox;
+
     GraphicsView *view;
     QSlider *zoomSlider;
+    CellDialog *cellDialog;
+    QGroupBox *vertGroupBox;
+    GraphicsScene *scene;
     QHash<QString, QVector<qreal>> cells;
     QVector<Coin*> cellsVec;
+//    QHash<QString, Coin*> allCells;
     qreal scaleFactor = 1;
     QVector<int> xSize;
     QVector<int> xStart;
-    CellDialog *cellDialog;
+    QString fileName;
+    SaveFormat saveFormat;
+    QRect workingArea;
+    QGraphicsRectItem *pdfRect1;
+    QGraphicsRectItem *pdfRect2;
+    QUrl pdfFileName;
+    TextEditor *textEditor;
+    QGraphicsTextItem *textEditorText;
+//    QTextEdit *textEdit;
+//    QGraphicsProxyWidget *proxyTextEdit;
 
 //    QAction *saveAsAct;
 //    QAction *printAct;

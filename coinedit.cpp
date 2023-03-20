@@ -1,5 +1,6 @@
 ﻿#include "coinedit.h"
 #include "coin.h"
+#include "graphics.h"
 
 #include <QAction>
 #include <QApplication>
@@ -20,26 +21,13 @@
 #include <QPrintDialog>
 #include <QSlider>
 #include <QWheelEvent>
-#include <algorithm>
 #include <QGraphicsObject>
-
-void GraphicsView::wheelEvent(QWheelEvent *e)
-{
-    if (e->angleDelta().y() > 0)
-        coinedit->zoomIn(8);
-    else
-        coinedit->zoomOut(8);
-    e->accept();
-}
-
-//void GraphicsView::resizeEvent(QResizeEvent *event)
-//{
-//    QGraphicsView::resizeEvent(event);
-//    fitInView(sceneRect(), Qt::KeepAspectRatio);
-//}
+#include <QPrintPreviewDialog>
+//#include <QPdfDocument>
 
 CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
-    view(new GraphicsView(this)), zoomSlider(new QSlider), cellDialog(new CellDialog(this))
+    view(new GraphicsView(this)), zoomSlider(new QSlider), cellDialog(new CellDialog(this)),
+    scene(new GraphicsScene(view))
 {
     //Set main layout
     QGroupBox *mainGroupBox = new QGroupBox;
@@ -47,7 +35,8 @@ CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
     setCentralWidget(mainGroupBox);
     mainGroupBox->setLayout(mainLayout);
 
-//        resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
+    //resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
+
 
     //Add central widget
     setSectorLines();
@@ -56,25 +45,22 @@ CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
 
     drawPitak();
 
-    //    QImage image("://pics/niagara_falls.jpg");
-    //    QLabel *imageLabel = new QLabel;
-    //    imageLabel->setPixmap(QPixmap::fromImage(image));
-    //    imageLabel->setBackgroundRole(QPalette::Base);
-    //    imageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-    //    imageLabel->setScaledContents(true);
-
     //Add scroll area
     //    scrollArea = new QScrollArea;
     //    scrollArea->setBackgroundRole(QPalette::Dark);
     //    scrollArea->setWidget(view);
     //    mainLayout->addWidget(scrollArea);
     //    view->setRenderHint(QPainter::Antialiasing, false);
-    view->setDragMode(QGraphicsView::ScrollHandDrag);
-    //    view->setOptimizationFlags(QGraphicsView::DontSavePainterState);
-    view->setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
-    view->setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
 
     mainLayout->addWidget(view);
+
+    //TextEditor
+//    QTextEdit *textEdit = new QTextEdit();
+//    textEditor = new TextEditor(scene->addWidget(textEdit));
+    textEditor = new TextEditor(this);
+    QGraphicsProxyWidget *proxy = scene->addWidget(textEditor);
+//    textEditor->setProxy(proxy);
+    textEditor->setView(view);
 
     //Create menus
     createActions();
@@ -83,61 +69,92 @@ CoinEdit::CoinEdit(QWidget *parent) : QMainWindow(parent),
     statusBar()->showMessage("Привет!",4000);
 
     connect(zoomSlider, &QAbstractSlider::valueChanged, this, &CoinEdit::setupMatrix);
+    connect(cellDialog, &CellDialog::updateStats, this, &CoinEdit::updateStats);
+
+
+//    scene->setSceneRect(QRect(1000, -2600, 3800, 2676));
+    view->horizontalScrollBar()->setValue(1876);
+    view->verticalScrollBar()->setValue(-2397);
+    emit zoomSlider->valueChanged(206);
+
+//    view->horizontalScrollBar()->setMinimum(-3200);
+//    view->horizontalScrollBar()->setMaximum(5000);
+//    view->horizontalScrollBar()->setRange(-5000,5000);
+    scene->setSceneRect(QRect(-500-500, -2600-500, 4800, 4800/1.42));
+
+    open();
 }
 
-bool CoinEdit::save()
+void CoinEdit::save()
 {
+    if (fileName.isEmpty()){
+        saveAs();
+        return;
+    }
+
     SaveFormat saveFormat = SaveFormat::Json;
 
-    QFile saveFile(saveFormat == Json
-          ? QStringLiteral("save.json")
-          : QStringLiteral("save.dat"));
+    if (!fileName.endsWith(".json"))
+        fileName += ".json";
 
-      if (!saveFile.open(QIODevice::WriteOnly)) {
-          qWarning("Couldn't open save file.");
-          return false;
-      }
+    QFile saveFile(saveFormat == Json
+          ? fileName : QStringLiteral("save.dat"));
+
+//     QFile saveFile(fileName);
+
+    if (!saveFile.open(QIODevice::WriteOnly)) {
+        QMessageBox::information(this, "Не могу открыть файл",
+                     saveFile.errorString());
+        return;
+    }
 
       QJsonObject dataObject;
       write(dataObject);
-      saveFile.write(saveFormat == Json
-          ? QJsonDocument(dataObject).toJson()
-          : QCborValue::fromJsonValue(dataObject).toCbor());
+      saveFile.write(QJsonDocument(dataObject).toJson());
+//      saveFile.write(saveFormat == Json
+//          ? QJsonDocument(dataObject).toJson()
+//          : QCborValue::fromJsonValue(dataObject).toCbor());
 
-      return true;
+//      return true;
+    statusBar()->showMessage("Картограмма сохранена в " + fileName,4000);
 }
 
-bool CoinEdit::load()
+void CoinEdit::open()
 {
     SaveFormat saveFormat = SaveFormat::Json;
 
-    QFile loadFile(saveFormat == Json
-           ? QStringLiteral("save.json")
-           : QStringLiteral("save.dat"));
+//    fileName = QFileDialog::getOpenFileName(this,
+//            "Открыть картограмму", QDir::currentPath(),
+//            "JSON (*.json);;binary (*.dat)");
 
-       if (!loadFile.open(QIODevice::ReadOnly)) {
-           qWarning("Couldn't open save file.");
-           return false;
-       }
+   fileName = "save.json";
 
-       QByteArray saveData = loadFile.readAll();
+    if (fileName.isEmpty())
+        return;
 
-       QJsonDocument loadDoc(saveFormat == Json
-           ? QJsonDocument::fromJson(saveData)
-           : QJsonDocument(QCborValue::fromCbor(saveData).toMap().toJsonObject()));
+    QFile loadFile(saveFormat == Json ? fileName : QStringLiteral("save.dat"));
 
-       read(loadDoc.object());
+    if (!loadFile.open(QIODevice::ReadWrite)) {
+        QMessageBox::information(this, tr("Unable to open file"),
+            loadFile.errorString());
+        return;
+    }
 
-       QTextStream(stdout) << "Loaded save for "
-                           << loadDoc["Ячейки"].toString()
-                           << " using "
-                           << (saveFormat != Json ? "CBOR" : "JSON") << "...\n";
-       return true;
+    QByteArray saveData = loadFile.readAll();
+
+    QJsonDocument loadDoc(saveFormat == Json
+                  ? QJsonDocument::fromJson(saveData)
+                  : QJsonDocument(QCborValue::fromCbor(saveData).toMap().toJsonObject()));
+
+    read(loadDoc.object());
+
+    statusBar()->showMessage("Открыта картограмма " + fileName,4000);
 }
 
 void CoinEdit::setupMatrix()
 {
     qreal scale = qPow(qreal(2), (zoomSlider->value() - 250) / qreal(50));
+//    qDebug() << zoomSlider->value();
 
     QTransform matrix;
     matrix.scale(scale, scale);
@@ -147,46 +164,35 @@ void CoinEdit::setupMatrix()
     //    setResetButtonEnabled();
 }
 
-//void CoinEdit::wheelEvent(QWheelEvent *e)
-//{
-//    if (e->modifiers() & Qt::ControlModifier) {
-//        if (e->angleDelta().y() > 0)
-//            view->zoomIn(6);
-//        else
-//            view->zoomOut(6);
-//        e->accept();
-//    } else {
-//        QGraphicsView::wheelEvent(e);
-//    }
-//}
-
-void CoinEdit::newFile()
+void CoinEdit::saveAs()
 {
-    TODO();
-}
+    fileName = QFileDialog::getSaveFileName(this,
+            "Сохранить картограмму", QDir::currentPath(),
+            "JSON (*.json);;binary (*.dat)");
 
-void CoinEdit::open()
-{
-    TODO();
-}
+    if (fileName.isEmpty())
+          return;
 
-//bool CoinEdit::save()
-//{
-//    TODO();
-//}
-
-bool CoinEdit::saveAs()
-{
-    TODO();
+    save();
 }
 
 void CoinEdit::drawPitak()
 {
+    int x = 3800;
+    workingArea = QRect(-500, -2600, x, x/1.42);
+    QGraphicsRectItem *workingRect = scene->addRect(workingArea, QPen(Qt::NoPen), QBrush(Qt::white));
+//    QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect();
+//    effect->setColor(Qt::black);
+//    effect->setOffset(10);
+//    effect->setBlurRadius(10);
+
+//    workingRect->setGraphicsEffect(effect);
+
+    scene->setBackgroundBrush(QBrush(Qt::darkGray));
+
     int indent = 100;
     qreal k = 1.2;
     //Add graphics
-    QGraphicsScene *scene = new QGraphicsScene(this);
-//    cellDialog = new CellDialog();
 
     int xStep = qSin(qDegreesToRadians(60.0)) * RADIUS + STEP;
     int yStep = RADIUS + qSin(qDegreesToRadians(30.0)) * RADIUS + STEP*1.5;
@@ -268,6 +274,8 @@ void CoinEdit::drawPitak()
         }
     }
 
+    QHash<QString, Coin*> allCells;
+
     for(int y = 1; y <= xSize.size(); y++)
     {
         if (xSize[y-1] == 0)
@@ -287,6 +295,8 @@ void CoinEdit::drawPitak()
             QString cellNum = (y < 10 ? ("0" + QString::number(y)) : QString::number(y))
                     + "-"
                     + ((x + 6  + xStart[y-1]) < 10 ? ("0" + QString::number(x + 6  + xStart[y-1])) : QString::number(x + 6  + xStart[y-1]));
+
+
             item->setCellNum(cellNum);
 
             item->setCellDialog(cellDialog);
@@ -299,18 +309,48 @@ void CoinEdit::drawPitak()
             item->setLoadingType("Без загрузки");
             item->setLoadingSubType("Без загрузки");
 
-        cellsVec.append(item);
+            cellsVec.append(item);
+            allCells[cellNum] = item;
 
             scene->addItem(item);
-        }
+            connect(item, &Coin::printCellNum, [&](const QString& cellNum){
+                statusBar()->showMessage(cellNum, 4000);
+            });
 
+            QFont font("Times", 8, QFont::Normal, false);
+
+            QGraphicsTextItem *text = scene->addText(cellNum, font);
+            text->setRotation(-30);
+            text->setPos(QPointF(x*xStep + xStart[y-1]*xStep + RADIUS*0.45, -y*yStep + RADIUS*0.7));
+            text->setZValue(1);
+
+        }
     }
 
-    //    scene->setSceneRect(0,0,1000,1000);
+//    QRect(-500, -2600, x, x/1.42);
+    int yup = -indent - (5+xSize.size())*k*(RADIUS + STEP) - 30;
+//    qDebug()<<"y up: "<< yup;
+//    int yd = indent - 3*k*(RADIUS + STEP) - 3;
+//    qDebug()<<"y down: "<< yd;
 
-    //    view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    int xr = static_cast<qreal>(*std::max_element(xSize.begin(), xSize.end()))*xStep*2+xStep*3 - 3*STEP +indent + 4;
+//    qDebug()<<"x right: "<< xr;
+
+    int pdfSize = 807;
+//    pdfRect1 = scene->addRect(xr + 40, yup, pdfSize, pdfSize*1.42);
+//    qDebug()<<xr + 40 << " "<< yup << " " <<  pdfSize << " " << pdfSize*1.42;
+
+//    pdfRect2 = scene->addRect(xr + 40, yup+pdfSize*1.42, pdfSize, pdfSize*1.42);
+//    qDebug()<<xr + 40 << " "<<  yup+pdfSize*1.42 << " " <<  pdfSize << " " << pdfSize*1.42;
+
+    cellDialog->setAllCells(allCells);
+
+    //TextEdit
+    QRect textEditRect = QRect(xr + 40, yup, pdfSize, pdfSize*1.42*2);
+    qDebug()<<xr + 40 << " "<<  yup << " " <<  pdfSize << " " << pdfSize*1.42*2;
+//    proxyTextEdit->setGeometry(textEditRect);
+
     view->setScene(scene);
-    //    mainLayout->addWidget(imageLabel);
 }
 
 void CoinEdit::setSectorLines()
@@ -363,16 +403,17 @@ void CoinEdit::read(const QJsonObject &json)
         QJsonArray cellsArray = json["Ячейки"].toArray();
 
         for(int i = 0; i < cellsVec.size(); i++){
-          QJsonObject cellObject = cellsArray[i].toObject();
-          cellsVec[i]->read(cellObject);
+            QJsonObject cellObject = cellsArray[i].toObject();
+            cellsVec[i]->read(cellObject);
         }
-//        QHash<QString, Coin*>::iterator i = cellsMap.begin();
-//        size_t ind = 0;
-//        while (i != cellsMap.end()){
-//            QJsonObject cellObject = cellsArray[ind].toObject();
-//            i.value()->read(cellObject);
-//            ind++;
-//        }
+    }
+
+    if (json.contains("Боковушка") && json["Боковушка"].isObject()){//
+//        QJsonValue textEditorData = json["Боковушка"].toString();
+//        qDebug()<<textEditorData;
+//        QJsonObject textEditorDataObject = textEditorData.toObject();
+        QJsonObject textEditorDataObject = json["Боковушка"].toObject();
+        textEditor->read(textEditorDataObject);
     }
 }
 
@@ -381,103 +422,81 @@ void CoinEdit::write(QJsonObject &json)
     QJsonArray cellsArray;
 
     for(auto& coin : cellsVec){
-      QJsonObject cellObject;
-      coin->write(cellObject);
-      cellsArray.append(cellObject);
+        QJsonObject cellObject;
+        coin->write(cellObject);
+        cellsArray.append(cellObject);
     }
-//    QHash<QString, Coin*>::const_iterator i = cellsMap.constBegin();
-//    while (i != cellsMap.constEnd()){
-//        QJsonObject cellObject;
-//        i.value()->write(cellObject);
-//        cellsArray.append(cellObject);
-//    }
-
     json["Ячейки"] = cellsArray;
+
+//    QJsonArray textEditorArray;
+    QJsonObject textEditorObject;
+    textEditor->write(textEditorObject);
+//    textEditorArray.append(textEditorObject);
+    json["Боковушка"] = textEditorObject;
 }
 
-//bool CoinEdit::loadFile(const QString &fileName)
-//{
-//    QImageReader reader(fileName);
-//    reader.setAutoTransform(true);
-//    const QImage newImage = reader.read();
-//    if (newImage.isNull()) {
-//        QMessageBox::information(this, QGuiApplication::applicationDisplayName(),
-//                                 tr("Cannot load %1: %2")
-//                                 .arg(QDir::toNativeSeparators(fileName), reader.errorString()));
-//        return false;
-//    }
-
-//    setImage(newImage);
-
-//    setWindowFilePath(fileName);
-
-//    const QString message = tr("Opened \"%1\", %2x%3, Depth: %4")
-//        .arg(QDir::toNativeSeparators(fileName)).arg(image.width()).arg(image.height()).arg(image.depth());
-//    statusBar()->showMessage(message);
-//    return true;
-//}
-
-//bool CoinEdit::saveFile(const QString &fileName)
-//{
-//    QImageWriter writer(fileName);
-
-//    if (!writer.write(image)) {
-//        QMessageBox::information(this, QGuiApplication::applicationDisplayName(),
-//                                 tr("Cannot write %1: %2")
-//                                 .arg(QDir::toNativeSeparators(fileName)), writer.errorString());
-//        return false;
-//    }
-//    const QString message = tr("Wrote \"%1\"").arg(QDir::toNativeSeparators(fileName));
-//    statusBar()->showMessage(message);
-//    return true;
-//}
-
-//static void initializeImageFileDialog(QFileDialog &dialog, QFileDialog::AcceptMode acceptMode)
-//{
-//    static bool firstDialog = true;
-
-//    if (firstDialog) {
-//        firstDialog = false;
-//        const QStringList picturesLocations = QStandardPaths::standardLocations(QStandardPaths::PicturesLocation);
-//        dialog.setDirectory(picturesLocations.isEmpty() ? QDir::currentPath() : picturesLocations.last());
-//    }
-
-//    QStringList mimeTypeFilters;
-//    const QByteArrayList supportedMimeTypes = acceptMode == QFileDialog::AcceptOpen
-//        ? QImageReader::supportedMimeTypes() : QImageWriter::supportedMimeTypes();
-//    for (const QByteArray &mimeTypeName : supportedMimeTypes)
-//        mimeTypeFilters.append(mimeTypeName);
-//    mimeTypeFilters.sort();
-//    dialog.setMimeTypeFilters(mimeTypeFilters);
-//    dialog.selectMimeTypeFilter("image/jpeg");
-//    if (acceptMode == QFileDialog::AcceptSave)
-//        dialog.setDefaultSuffix("jpg");
-//}
-
-//void CoinEdit::open()
-//{
-//    QFileDialog dialog(this, tr("Open File"));
-//    initializeImageFileDialog(dialog, QFileDialog::AcceptOpen);
-
-//    while (dialog.exec() == QDialog::Accepted && !loadFile(dialog.selectedFiles().first())) {}
-//}
-
-//void CoinEdit::saveAs()
-//{
-//    QFileDialog dialog(this, tr("Save File As"));
-//    initializeImageFileDialog(dialog, QFileDialog::AcceptSave);
-
-//    while (dialog.exec() == QDialog::Accepted && !saveFile(dialog.selectedFiles().first())) {}
-//}
-
-void CoinEdit::print()
+void CoinEdit::print(QPrinter *printer)
 {
+//    QPrinter printer(QPrinter::HighResolution);
+//    QPrintDialog dialog(printer, this);
+
+//    if (dialog.exec() == QDialog::Accepted) {
+        QPainter painter(printer);
+        QRect viewport = view->viewport()->rect();
+        qDebug() << "viewport " << viewport;
+//        qDebug() << "window " << view->window()->rect();
+
+        QRect sceneRect = scene->itemsBoundingRect().toRect();
+//        scene->setSceneRect(sceneRect);
+        qDebug() << "scene " << sceneRect;
+
+        QRect viewRect = view->contentsRect();
+        qDebug() << "view " << viewRect;
+
+        QRect mappedRect = view->mapFromScene(sceneRect).boundingRect();
+        qDebug() << "mappedRect " << mappedRect;
+
+//        painter.setViewport(sceneRect);
+//        painter.setWindow(sceneRect);
+
+//        painter.setWorldMatrixEnabled(false);
+
+//        painter.setViewport(mappedRect);
+//        painter.setWindow(QRect(0,0, 13699,9583));
+
+        QRectF target = QRectF(0, 0, printer->width(), printer->height());
+        qDebug() << "target " << target;
+
+        view->render(&painter,
+                     target,
+                     mappedRect.adjusted(0,0,-10,-10),
+//                     workingArea.adjusted(0, workingArea.height()/2, 0, workingArea.height()/2), //);
+//                     viewport.adjusted(-viewport.width(), -viewport.height(), viewport.width(), viewport.height()));
+                   Qt::KeepAspectRatio);
+//        view->render(&painter);
+//    }
+}
+
+void CoinEdit::printPreview()
+{
+    textEditor->hide();
+    textEditorText = new QGraphicsTextItem();
+    scene->addItem(textEditorText);
+    textEditorText->setPos(2374, -2347);
+//    textEditorText->setTextWidth()
+    textEditorText->setHtml(textEditor->document()->toHtml());
+
     QPrinter printer(QPrinter::HighResolution);
-    QPrintDialog dialog(&printer, this);
-    if (dialog.exec() == QDialog::Accepted) {
-        QPainter painter(&printer);
-        view->render(&painter);
-    }
+    printer.setPageOrientation(QPageLayout::Landscape);
+//    QPainter painter(&printer);
+//    view->render(&painter);
+    QPrintPreviewDialog preview(&printer, this);
+    connect(&preview, &QPrintPreviewDialog::paintRequested,
+            this, &CoinEdit::print);
+    preview.exec();
+
+    delete textEditorText;
+    textEditor->show();
 }
 
 void CoinEdit::zoomIn(int level)
@@ -490,36 +509,19 @@ void CoinEdit::zoomOut(int level)
     zoomSlider->setValue(zoomSlider->value() - level);
 }
 
-//void CoinEdit::fitToWindow()
-//{
-//    bool fitToWindow = fitToWindowAct->isChecked();
-//    scrollArea->setWidgetResizable(fitToWindow);
-//    if (!fitToWindow)
-//        normalSize();
-//    updateActions();
-//}
-
 void CoinEdit::about()
 {
-    QMessageBox::about(this, "CoinEdit 2",
-               tr("<p>The <b>Image Viewer</b> example shows how to combine QLabel "
-                  "and QScrollArea to display an image. QLabel is typically used "
-                  "for displaying a text, but it can also display an image. "
-                  "QScrollArea provides a scrolling view around another widget. "
-                  "If the child widget exceeds the size of the frame, QScrollArea "
-                  "automatically provides scroll bars. </p><p>The example "
-                  "demonstrates how QLabel's ability to scale its contents "
-                  "(QLabel::scaledContents), and QScrollArea's ability to "
-                  "automatically resize its contents "
-                  "(QScrollArea::widgetResizable), can be used to implement "
-                  "zooming and scaling features. </p><p>In addition the example "
-                  "shows how to use QPainter to print an image.</p>"));
+    QMessageBox::about(this, "О программе",
+               "<p>Программа <b>CoinEdit 2</b> предназначна для составления"
+               " картограмм перегрузки реактра Р.</p>"
+               "<p>Разработал Тихонов С.</p>"
+               "<p>stikhon88@gmail.com</p>");
 }
 
 void CoinEdit::TODO()
 {
     QMessageBox message;
-    message.setWindowTitle("Сорян");
+//    message.setWindowTitle("Сорян");
     message.setText("Функционал не готов");
     //    message.setInformativeText("?");
     message.setIcon(QMessageBox::Critical);
@@ -527,6 +529,45 @@ void CoinEdit::TODO()
     message.setDefaultButton(QMessageBox::Ok);
 
     message.exec();
+}
+
+void CoinEdit::updateStats(QHash<QString, size_t> &typeCounter, QHash<QString, size_t> &subTypeCounter)
+{
+    typeCounter.clear();
+    subTypeCounter.clear();
+
+    for(auto& cell : cellsVec){
+        typeCounter[cell->loadingType()]++;
+        subTypeCounter[cell->loadingSubType()]++;
+    }
+}
+
+void CoinEdit::addPdf()
+{
+    qDebug()<<view->horizontalScrollBar()->value();
+    qDebug()<<view->verticalScrollBar()->value();
+    qDebug()<<zoomSlider->value();
+
+#if   QT_VERSION >= 0x060402
+//    pdfFileName = QFileDialog::getOpenFileName(this,
+//                           "Открыть pdf файл", QDir::currentPath(),
+//                           "pdf (*.pdf)");
+
+//    QUrl pdfFileName = QFileDialog::getOpenFileUrl(this, tr("Choose a PDF"), QUrl(), "Portable Documents (*.pdf)");
+//         if (pdfFileName.isValid())
+//             open(pdfFileName);
+//    QPdfDocument *pdfDoc;
+
+//    if (docLocation.isLocalFile()) {
+//             m_document->load(docLocation.toLocalFile());
+//             const auto documentTitle = m_document->metaData(QPdfDocument::Title).toString();
+//             setWindowTitle(!documentTitle.isEmpty() ? documentTitle : QStringLiteral("PDF Viewer"));
+//         } else {
+//             qCDebug(lcExample) << docLocation << "is not a valid local file";
+//             QMessageBox::critical(this, tr("Failed to open"), tr("%1 is not a valid local file").arg(docLocation.toString()));
+//         }
+//         qCDebug(lcExample) << docLocation
+#endif
 }
 
 //void CoinEdit::createCellDialog()
@@ -540,13 +581,13 @@ void CoinEdit::createActions()
     //File
     QMenu *fileMenu = menuBar()->addMenu("&Файл");
     QToolBar *fileToolBar = addToolBar("File");
-    const QIcon newIcon = QIcon::fromTheme("document-new", QIcon(":/icons/new.png"));
-    QAction *newAct = new QAction(newIcon, "&Создать", this);
-    newAct->setShortcuts(QKeySequence::New);
-    newAct->setStatusTip("Создать новую картограмму");
-    connect(newAct, &QAction::triggered, this, &CoinEdit::newFile);
-    fileMenu->addAction(newAct);
-    fileToolBar->addAction(newAct);
+//    const QIcon newIcon = QIcon::fromTheme("document-new", QIcon(":/icons/new.png"));
+//    QAction *newAct = new QAction(newIcon, "&Создать", this);
+//    newAct->setShortcuts(QKeySequence::New);
+//    newAct->setStatusTip("Создать новую картограмму");
+//    connect(newAct, &QAction::triggered, this, &CoinEdit::newFile);
+//    fileMenu->addAction(newAct);
+//    fileToolBar->addAction(newAct);
 
     //Open
     const QIcon openIcon = QIcon::fromTheme("document-open", QIcon(":/icons/open.png"));
@@ -576,7 +617,7 @@ void CoinEdit::createActions()
 
     //Print
     const QIcon printIcon = QIcon::fromTheme("document-print", QIcon(":/icons/print.png"));
-    QAction *printAct = fileMenu->addAction(printIcon, "&Печать...", this, &CoinEdit::print);
+    QAction *printAct = fileMenu->addAction(printIcon, "&Печать...", this, &CoinEdit::printPreview);
     printAct->setShortcuts(QKeySequence::Print);
     printAct->setStatusTip("Распечатать картограмму");
     QToolBar *printToolBar = addToolBar("Печать");
@@ -588,35 +629,50 @@ void CoinEdit::createActions()
     //Zoom
     QToolBar *zoomToolBar = addToolBar("Масштаб");
     const QIcon zoomOutIcon = QIcon::fromTheme("document-zoom-out", QIcon(":/icons/zoomout.png"));
-    QAction *zoomOutAct = zoomToolBar->addAction(zoomOutIcon, "Отдалить", this, &CoinEdit::zoomOut);
+    QAction *zoomOutAct = zoomToolBar->addAction(zoomOutIcon, "Отдалить", this, [&]{
+        zoomOut(8);
+    });
     zoomOutAct->setShortcuts(QKeySequence::ZoomOut);
     zoomOutAct->setStatusTip("Отдалить");
     zoomToolBar->addAction(zoomOutAct);
 
-    zoomSlider->setMinimum(0);
-    zoomSlider->setMaximum(500);
-    zoomSlider->setValue(250);
+    zoomSlider->setMinimum(146);
+    zoomSlider->setMaximum(282);
+    zoomSlider->setValue(206);
     zoomSlider->setTickPosition(QSlider::TicksRight);
     zoomSlider->setOrientation(Qt::Horizontal);
     zoomToolBar->addWidget(zoomSlider);
 
     const QIcon zoomInIcon = QIcon::fromTheme("document-zoom-in", QIcon(":/icons/zoomin.png"));
-    QAction *zoomInAct = zoomToolBar->addAction(zoomInIcon, "Приблизить", this, &CoinEdit::zoomIn);
+    QAction *zoomInAct = zoomToolBar->addAction(zoomInIcon, "Приблизить", this, [&]{
+        zoomIn(8);
+    });
     zoomInAct->setShortcuts(QKeySequence::ZoomIn);
     zoomInAct->setStatusTip("Приблизить");
     zoomToolBar->addAction(zoomInAct);
 
+
+    //Боковушка
+//    QToolBar *addPdfToolBar = addToolBar("Добавить боковушку");
+//    QAction *addPdfAct = addPdfToolBar->addAction("+pdf", this, &CoinEdit::addPdf);
+//    addPdfAct->setStatusTip("Добавить боковушку");
+
+    textEditor->setupEditActions();
+    //
+    textEditor->setupTextActions();
+    //
+    textEditor->doOnStartUp();
+
     //Exit
     const QIcon exitIcon = QIcon::fromTheme("application-exit");
-    QAction *exitAct = fileMenu->addAction(exitIcon, "&Выход", this, &QApplication::exit);
-    exitAct->setShortcuts(QKeySequence::Quit);
+    QAction *exitAct = fileMenu->addAction(exitIcon, "Выход", this, &QApplication::exit);
+    exitAct->setShortcut(QKeySequence("Ctrl+Q"));
     exitAct->setStatusTip("Завершить работу");
 
-    QMenu *helpMenu = menuBar()->addMenu("&Помощь");
+    QMenu *helpMenu = menuBar()->addMenu("П&омощь");
 
     helpMenu->addAction("&О программе", this, &CoinEdit::about);
     helpMenu->addAction("About &Qt", &QApplication::aboutQt);
-
 }
 
 void CoinEdit::createVertGroupBox()
@@ -631,28 +687,6 @@ void CoinEdit::createVertGroupBox()
     }
 
     vertGroupBox->setLayout(layout);
-}
-
-
-//void CoinEdit::updateActions()
-//{
-//    saveAsAct->setEnabled(!image.isNull());
-//    copyAct->setEnabled(!image.isNull());
-//    zoomInAct->setEnabled(!fitToWindowAct->isChecked());
-//    zoomOutAct->setEnabled(!fitToWindowAct->isChecked());
-//    normalSizeAct->setEnabled(!fitToWindowAct->isChecked());
-//}
-
-void CoinEdit::scaleImage(double factor)
-{
-//    scaleFactor *= factor;
-//    view->resize(scaleFactor * imageLabel->pixmap(Qt::ReturnByValue).size());
-
-//    adjustScrollBar(scrollArea->horizontalScrollBar(), factor);
-//    adjustScrollBar(scrollArea->verticalScrollBar(), factor);
-
-//    zoomInAct->setEnabled(scaleFactor < 3.0);
-//    zoomOutAct->setEnabled(scaleFactor > 0.333);
 }
 
 //void CoinEdit::adjustScrollBar(QScrollBar *scrollBar, double factor)

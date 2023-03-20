@@ -1,7 +1,8 @@
+TEMPLATE = app
 QT       += core gui
 
-greaterThan(QT_MAJOR_VERSION, 4.5): QT += widgets gui printsupport
-
+QT += widgets gui printsupport
+# greaterThan(QT_MAJOR_VERSION, 5.15):
 CONFIG += c++17
 
 # You can make your code fail to compile if it uses deprecated APIs.
@@ -12,12 +13,16 @@ SOURCES += \
     celldialog.cpp \
     coin.cpp \
     coinedit.cpp \
-    main.cpp
+    graphics.cpp \
+    main.cpp \
+    texteditor.cpp
 
 HEADERS += \
     celldialog.h \
     coin.h \
-    coinedit.h
+    coinedit.h \
+    graphics.h \
+    texteditor.h
 
 FORMS +=
 
