@@ -1,9 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>pics/niagara_falls.jpg</file>
-        <file>pics/new.png</file>
-        <file>pics/open.png</file>
-        <file>pics/paste.png</file>
-        <file>pics/save.png</file>
-    </qresource>
-</RCC>

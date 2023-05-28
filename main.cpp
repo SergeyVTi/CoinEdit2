@@ -1,12 +1,11 @@
 ﻿#include "coinedit.h"
-#include "coin.h"
 
 #include <QApplication>
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QGuiApplication::setApplicationDisplayName("Coinedit 2");
+    QGuiApplication::setApplicationDisplayName("CoinEdit 2");
 
     CoinEdit coinEdit;
     coinEdit.show();

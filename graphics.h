@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <QGraphicsView>
+#include <QtWidgets/QtWidgets>
 QT_BEGIN_NAMESPACE
 class CoinEdit;
 QT_END_NAMESPACE
@@ -14,11 +14,9 @@ public:
 protected:
     void wheelEvent(QWheelEvent *) override;
     void mousePressEvent(QMouseEvent *) override;
-    void mouseReleaseEvent(QMouseEvent *) override;
     void mouseMoveEvent(QMouseEvent *) override;
-//    void keyPressEvent(QKeyEvent *) override;
-//    void keyReleaseEvent(QKeyEvent *) override;
-//    void resizeEvent(QResizeEvent *event) override;
+    void keyPressEvent(QKeyEvent *) override;
+    void keyReleaseEvent(QKeyEvent *) override;
 
 private:
     CoinEdit *coinedit;
@@ -28,21 +26,16 @@ class GraphicsScene : public QGraphicsScene
 {
     Q_OBJECT
 public:
-    GraphicsScene(GraphicsView *view) : QGraphicsScene(), view(view) { }
-//    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    GraphicsScene(GraphicsView *view)
+        : QGraphicsScene()
+        , view(view)
+    {}
 
     GraphicsView *view;
 
 protected:
-//    void wheelEvent(QWheelEvent *) override;
-//    void mousePressEvent(QMouseEvent *) override;
-//    void mouseReleaseEvent(QMouseEvent *) override;
-//    void mouseMoveEvent(QMouseEvent *) override;
-//    void resizeEvent(QResizeEvent *event) override;
 
 private:
-//};
-//*event) override;
 
 private:
 };

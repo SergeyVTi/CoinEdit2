@@ -1,116 +1,146 @@
 ﻿#include "texteditor.h"
-
-#include <QTextEdit>
-#include <QDebug>
-#include <QStyleOptionFrame>
-#include <QMenu>
-#include "graphics.h"
+#include <QPrinter>
 #include "coinedit.h"
-#include <QToolBar>
-#include <QMenuBar>
-#include <QApplication>
-#include <QClipboard>
-#include <QMimeData>
-#include <QTextList>
-#include <QColorDialog>
-#include <QColor>
-#include <QComboBox>
-#include <QFontComboBox>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QScrollBar>
 
-TextEditor::TextEditor(CoinEdit *coinEdit) : coinEdit(coinEdit)
+TextEditors::TextEditors(CoinEdit *coinEdit)
+    : coinEdit(coinEdit)
 {
-    setGeometry(QRect(2374, -2347, 807, 2292));
-//    setContentsMargins(0, 0, 500, 500);
-//    setMaximumSize(300,300);
-//    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    setFrameStyle(QStyleOptionFrame::None);
+    setGeometry(0, 0, 3800, 3800 / 1.42);
+    setPalette(Qt::white);
 
+    QHBoxLayout *layout = new QHBoxLayout;
+    textEditorRight = new QTextEdit(this);
+    textEditorRight->setFrameStyle(QStyleOptionFrame::None);
+    textEditorLeft = new QTextEdit(this);
+    textEditorLeft->setFrameStyle(QStyleOptionFrame::None);
+    layout->addWidget(textEditorLeft);
+    layout->addSpacing(1940);
+    layout->addWidget(textEditorRight);
 
+    setLayout(layout);
+
+    QFont textFont("Times New Roman");
+    textFont.setPointSize(14);
+    textFont.setStyleHint(QFont::Serif);
+
+    textEditorRight->setFont(textFont);
+    textEditorRight->setGeometry(QRect(0, 0, 930, 2641));
+    textEditorRight->setPlaceholderText("\n\n\n\n\n\n\n\n\n\n\nБоковушка");
+
+    textEditorLeft->setFont(textFont);
+    textEditorLeft->setGeometry(QRect(0, 0, 930, 2641));
+    textEditorLeft->setPlaceholderText("\n\n\n\n\n\n\n\n\n\n\nСогласование");
+
+    currentEditor = textEditorRight;
 }
 
-void TextEditor::doOnStartUp()
+void TextEditors::doOnStartUp()
 {
-    connect(this, &QTextEdit::currentCharFormatChanged,
-            this, &TextEditor::currentCharFormatChanged);
-    connect(this, &QTextEdit::cursorPositionChanged,
-            this, &TextEditor::cursorPositionChanged);
+    connect(textEditorRight,
+            &QTextEdit::currentCharFormatChanged,
+            this,
+            &TextEditors::currentCharFormatChanged);
+    connect(textEditorLeft,
+            &QTextEdit::currentCharFormatChanged,
+            this,
+            &TextEditors::currentCharFormatChanged);
 
-    QFont textFont("Times");
-    textFont.setStyleHint(QFont::SansSerif);
-    QTextEdit::setFont(textFont);
-    fontChanged(QTextEdit::font());
-    colorChanged(QTextEdit::textColor());
-    alignmentChanged(this->alignment());
+    connect(textEditorRight, &QTextEdit::cursorPositionChanged, [&] {
+        currentEditor = textEditorRight;
+        cursorPositionChanged();
+    });
+    connect(textEditorLeft, &QTextEdit::cursorPositionChanged, [&] {
+        currentEditor = textEditorLeft;
+        cursorPositionChanged();
+    });
 
-//        connect(this->document(), &QTextDocument::modificationChanged,
-//                actionSave, &QAction::setEnabled);
-        connect(document(), &QTextDocument::modificationChanged,
-                this, &QWidget::setWindowModified);
-        connect(document(), &QTextDocument::undoAvailable,
-                actionUndo, &QAction::setEnabled);
-        connect(document(), &QTextDocument::redoAvailable,
-                actionRedo, &QAction::setEnabled);
+    connect(textEditorRight->document(),
+            &QTextDocument::modificationChanged,
+            this,
+            &QWidget::setWindowModified);
 
-        setWindowModified(this->document()->isModified());
-    //    actionSave->setEnabled(textEdit->document()->isModified());
-        actionUndo->setEnabled(this->document()->isUndoAvailable());
-        actionRedo->setEnabled(this->document()->isRedoAvailable());
+    connect(textEditorRight, &QTextEdit::undoAvailable, actionUndo, &QAction::setEnabled);
 
-        actionCut->setEnabled(false);
-        connect(this, &QTextEdit::copyAvailable, actionCut, &QAction::setEnabled);
-        actionCopy->setEnabled(false);
-        connect(this, &QTextEdit::copyAvailable, actionCopy, &QAction::setEnabled);
+    connect(textEditorRight, &QTextEdit::redoAvailable, actionRedo, &QAction::setEnabled);
 
-        connect(QApplication::clipboard(), &QClipboard::dataChanged, this, &TextEditor::clipboardDataChanged);
+    setWindowModified(textEditorRight->document()->isModified());
+    actionUndo->setEnabled(textEditorRight->document()->isUndoAvailable());
+    actionRedo->setEnabled(textEditorRight->document()->isRedoAvailable());
 
-    //    textEdit->setFocus();
-        //    setCurrentFileName(QString());
+    actionCut->setEnabled(false);
+    connect(textEditorRight, &QTextEdit::copyAvailable, actionCut, &QAction::setEnabled);
+    actionCopy->setEnabled(false);
+    connect(textEditorRight, &QTextEdit::copyAvailable, actionCopy, &QAction::setEnabled);
+
+    connect(QApplication::clipboard(),
+            &QClipboard::dataChanged,
+            this,
+            &TextEditors::clipboardDataChanged);
+
+    QTextCharFormat format;
+    format.setFont(QFont("Times New Roman", 14));
+    textEditorRight->mergeCurrentCharFormat(format);
+    textEditorLeft->mergeCurrentCharFormat(format);
+    qDebug() << "on startup";
 }
 
-void TextEditor::read(const QJsonObject &json)
+void TextEditors::read(const QJsonObject &json)
 {
-    if (json.contains("Текст") && json["Текст"].isString()){
-        QJsonValue textEditorData = json["Текст"].toString();
+    if (json.contains("Боковушка") && json["Боковушка"].isString()) {
+        QJsonValue textEditorData = json["Боковушка"].toString();
         QTextDocument *textDoc = new QTextDocument();
-//        qDebug()<<textEditorData.toString();
         textDoc->setHtml(textEditorData.toString());
-        setDocument(textDoc);
+        textDoc->setDefaultFont(QFont("Times New Roman", 14));
+        textEditorRight->setDocument(textDoc);
+    }
+
+    if (json.contains("Иконостас") && json["Иконостас"].isString()) {
+        QJsonValue textEditorData = json["Иконостас"].toString();
+        QTextDocument *textDoc = new QTextDocument();
+        textDoc->setHtml(textEditorData.toString());
+        textDoc->setDefaultFont(QFont("Times New Roman", 14));
+        textEditorLeft->setDocument(textDoc);
     }
 }
 
-void TextEditor::write(QJsonObject &json)
+void TextEditors::write(QJsonObject &json)
 {
-    QJsonValue textEditorData = {
-        this->document()->toHtml()
-    };
-    json["Текст"] = textEditorData;
+    QJsonValue textEditorRightData = {textEditorRight->document()->toHtml()};
+    json["Боковушка"] = textEditorRightData;
+
+    QJsonValue textEditorLeftData = {textEditorLeft->document()->toHtml()};
+    json["Иконостас"] = textEditorLeftData;
 }
 
-//void TextEditor::mouseMoveEvent(QMouseEvent *event)
-//{
-//    //   qDebug() << "Event";
-//    view->setInteractive(true);
-//}
+QString TextEditors::getRightTextHtml()
+{
+    return textEditorRight->toHtml();
+}
 
-void TextEditor::clipboardDataChanged()
+QString TextEditors::getLeftTextHtml()
+{
+    return textEditorLeft->toHtml();
+}
+
+void TextEditors::clipboardDataChanged()
 {
     if (const QMimeData *md = QApplication::clipboard()->mimeData())
         actionPaste->setEnabled(md->hasText());
 }
 
-void TextEditor::fontChanged(const QFont &f)
+void TextEditors::fontChanged(const QFont &f)
 {
-    comboFont->setCurrentIndex(comboFont->findText(QFontInfo(f).family()));
+    qDebug() << "fontChanged " << f.family();
+    //    comboFont->setCurrentIndex(comboFont->findText(QFontInfo(f).family()));
+    //    !!!
+    comboFont->setCurrentIndex(comboFont->findText(f.family()));
     comboSize->setCurrentIndex(comboSize->findText(QString::number(f.pointSize())));
     actionTextBold->setChecked(f.bold());
     actionTextItalic->setChecked(f.italic());
     actionTextUnderline->setChecked(f.underline());
 }
 
-void TextEditor::alignmentChanged(Qt::Alignment a)
+void TextEditors::alignmentChanged(Qt::Alignment a)
 {
     if (a & Qt::AlignLeft)
         actionAlignLeft->setChecked(true);
@@ -122,20 +152,79 @@ void TextEditor::alignmentChanged(Qt::Alignment a)
         actionAlignJustify->setChecked(true);
 }
 
-void TextEditor::setupEditActions()
+void TextEditors::addTable(Coin *tableCell, QVector<QString> text)
 {
-    //TextEditor
+    QTextCursor cursor = textEditorRight->textCursor();
+    QRect rect = textEditorRight->cursorRect(cursor);
+
+    cursor.beginEditBlock();
+
+    cursor.insertHtml("<br /><p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; "
+                      "margin-right:px; -qt-block-indent:0; text-indent:0px;\">"
+                      "<span style=\" font-family:'Times New Roman'; "
+                      "font-size:14pt;\">Извлечь:</span></p>\n"
+                      "<p style=\" margin-top:0px; margin-bottom:0px; margin-left:0px; "
+                      "margin-right:0px; -qt-block-indent:0; text-indent:0px;\">"
+                      "<span style=\" font-family:'Times New Roman'; font-size:14pt;\">"
+                      "Поставить: "
+                      + tableCell->getLoadingType() + " " + tableCell->getLoadingSubType()
+                      + "</span></p>\n");
+
+    QTextTable *table = cursor.insertTable(2, 2);
+
+    cursor = table->cellAt(0, 1).firstCursorPosition();
+
+    QTextBlockFormat blockFormat;
+    blockFormat.setAlignment(Qt::AlignHCenter);
+    cursor.setBlockFormat(blockFormat);
+
+    QTextCharFormat charFormat;
+    charFormat.setFont(QFont("Times New Roman", 14));
+    cursor.setBlockCharFormat(charFormat);
+
+    cursor.insertText("Ячейки");
+
+    cursor = table->cellAt(1, 0).firstCursorPosition();
+    cursor.insertText("\t  \n\n\n");
+    emit addTableCell(tableCell, rect.topLeft());
+
+    cursor = table->cellAt(1, 1).firstCursorPosition();
+    blockFormat.setAlignment(Qt::AlignLeft);
+    cursor.setBlockFormat(blockFormat);
+    cursor.setBlockCharFormat(charFormat);
+    for (int i = 0; i < text.size(); i++) {
+        if (i == text.size() - 1) {
+            cursor.insertText(text[i] + "\n");
+            break;
+        }
+        ((i + 1) % 10 != 0) ? cursor.insertText(text[i] + ", ")
+                            : cursor.insertText(text[i] + ", \n");
+    }
+
+    int num = text.size();
+    if (num < 10)
+        cursor.insertText("\t\t\t\t\t             = " + QString::number(num) + " шт.");
+    else if (num < 100)
+        cursor.insertText("\t\t\t\t\t           = " + QString::number(num) + " шт.");
+    else
+        cursor.insertText("\t\t\t\t\t         = " + QString::number(num) + " шт.");
+
+    cursor.endEditBlock();
+}
+
+void TextEditors::setupEditActions()
+{
+    // TextEditor
     QToolBar *editToolBar = coinEdit->addToolBar("Edit Actions");
-//    coinEdit->addToolBar(Qt::RightToolBarArea, editToolBar);
     QMenu *editMenu = coinEdit->menuBar()->addMenu("&Правка");
 
     const QIcon undoIcon = QIcon::fromTheme("edit-undo", QIcon(":/icons/editundo.png"));
-    actionUndo = editMenu->addAction(undoIcon, "&Отменить", this, &TextEditor::undo);
+    actionUndo = editMenu->addAction(undoIcon, "&Отменить", textEditorRight, &QTextEdit::undo);
     actionUndo->setShortcut(QKeySequence::Undo);
     editToolBar->addAction(actionUndo);
 
     const QIcon redoIcon = QIcon::fromTheme("edit-redo", QIcon(":/icons/editredo.png"));
-    actionRedo = editMenu->addAction(redoIcon, "&Вернуть", this, &TextEditor::redo);
+    actionRedo = editMenu->addAction(redoIcon, "&Вернуть", textEditorRight, &QTextEdit::redo);
     actionRedo->setPriority(QAction::LowPriority);
     actionRedo->setShortcut(QKeySequence::Redo);
     editToolBar->addAction(actionRedo);
@@ -143,19 +232,19 @@ void TextEditor::setupEditActions()
     editMenu->addSeparator();
 
     const QIcon cutIcon = QIcon::fromTheme("edit-cut", QIcon(":/icons/editcut.png"));
-    actionCut = editMenu->addAction(cutIcon, "В&ырезать", this, &TextEditor::cut);
+    actionCut = editMenu->addAction(cutIcon, "В&ырезать", textEditorRight, &QTextEdit::cut);
     actionCut->setPriority(QAction::LowPriority);
     actionCut->setShortcut(QKeySequence::Cut);
     editToolBar->addAction(actionCut);
 
     const QIcon copyIcon = QIcon::fromTheme("edit-copy", QIcon(":/icons/editcopy.png"));
-    actionCopy = editMenu->addAction(copyIcon, "&Копировать", this, &TextEditor::copy);
+    actionCopy = editMenu->addAction(copyIcon, "&Копировать", textEditorRight, &QTextEdit::copy);
     actionCopy->setPriority(QAction::LowPriority);
     actionCopy->setShortcut(QKeySequence::Copy);
     editToolBar->addAction(actionCopy);
 
     const QIcon pasteIcon = QIcon::fromTheme("edit-paste", QIcon(":/icons/editpaste.png"));
-    actionPaste = editMenu->addAction(pasteIcon, "В&ставить", this, &TextEditor::paste);
+    actionPaste = editMenu->addAction(pasteIcon, "В&ставить", textEditorRight, &QTextEdit::paste);
     actionPaste->setPriority(QAction::LowPriority);
     actionPaste->setShortcut(QKeySequence::Paste);
     editToolBar->addAction(actionPaste);
@@ -165,20 +254,23 @@ void TextEditor::setupEditActions()
     editMenu->addSeparator();
 
     const QIcon exportPdfIcon = QIcon::fromTheme("exportpdf", QIcon(":/icons/exportpdf.png"));
-    actionExportPdfFromEditor = editMenu->addAction(exportPdfIcon, "&Сохранить боковушку в PDF...", this, &TextEditor::filePrintPdf);
+    actionExportPdfFromEditor = editMenu->addAction(exportPdfIcon,
+                                                    "&Сохранить боковушку в PDF...",
+                                                    this,
+                                                    &TextEditors::filePrintPdf);
     actionExportPdfFromEditor->setPriority(QAction::LowPriority);
-    actionExportPdfFromEditor->setShortcut(Qt::CTRL + Qt::Key_D);
+    actionExportPdfFromEditor->setShortcut(Qt::CTRL | Qt::Key_D);
     editToolBar->addAction(actionExportPdfFromEditor);
 }
 
-void TextEditor::setupTextActions()
+void TextEditors::setupTextActions()
 {
     QToolBar *formattingToolBar = coinEdit->addToolBar("Format Actions");
     QMenu *formattingMenu = coinEdit->menuBar()->addMenu("Формат");
 
     const QIcon boldIcon = QIcon::fromTheme("format-text-bold", QIcon(":/icons/textbold.png"));
-    actionTextBold = formattingMenu->addAction(boldIcon, "&Жирный", this, &TextEditor::textBold);
-    actionTextBold->setShortcut(Qt::CTRL + Qt::Key_B);
+    actionTextBold = formattingMenu->addAction(boldIcon, "&Жирный", this, &TextEditors::textBold);
+    actionTextBold->setShortcut(Qt::CTRL | Qt::Key_B);
     actionTextBold->setPriority(QAction::LowPriority);
     QFont bold;
     bold.setBold(true);
@@ -187,18 +279,25 @@ void TextEditor::setupTextActions()
     actionTextBold->setCheckable(true);
 
     const QIcon italicIcon = QIcon::fromTheme("format-text-italic", QIcon(":/icons/textitalic.png"));
-    actionTextItalic = formattingMenu->addAction(italicIcon, "&Курсив", this, &TextEditor::textItalic);
+    actionTextItalic = formattingMenu->addAction(italicIcon,
+                                                 "&Курсив",
+                                                 this,
+                                                 &TextEditors::textItalic);
     actionTextItalic->setPriority(QAction::LowPriority);
-    actionTextItalic->setShortcut(Qt::CTRL + Qt::Key_I);
+    actionTextItalic->setShortcut(Qt::CTRL | Qt::Key_I);
     QFont italic;
     italic.setItalic(true);
     actionTextItalic->setFont(italic);
     formattingToolBar->addAction(actionTextItalic);
     actionTextItalic->setCheckable(true);
 
-    const QIcon underlineIcon = QIcon::fromTheme("format-text-underline", QIcon(":/icons/textunder.png"));
-    actionTextUnderline = formattingMenu->addAction(underlineIcon, "&Подчёркнутый", this, &TextEditor::textUnderline);
-    actionTextUnderline->setShortcut(Qt::CTRL + Qt::Key_U);
+    const QIcon underlineIcon = QIcon::fromTheme("format-text-underline",
+                                                 QIcon(":/icons/textunder.png"));
+    actionTextUnderline = formattingMenu->addAction(underlineIcon,
+                                                    "&Подчёркнутый",
+                                                    this,
+                                                    &TextEditors::textUnderline);
+    actionTextUnderline->setShortcut(Qt::CTRL | Qt::Key_U);
     actionTextUnderline->setPriority(QAction::LowPriority);
     QFont underline;
     underline.setUnderline(true);
@@ -210,36 +309,45 @@ void TextEditor::setupTextActions()
 
     const QIcon leftIcon = QIcon::fromTheme("format-justify-left", QIcon(":/icons/textleft.png"));
     actionAlignLeft = new QAction(leftIcon, "&Лево", this);
-    actionAlignLeft->setShortcut(Qt::CTRL + Qt::Key_L);
+    actionAlignLeft->setShortcut(Qt::CTRL | Qt::Key_L);
     actionAlignLeft->setCheckable(true);
     actionAlignLeft->setPriority(QAction::LowPriority);
-    const QIcon centerIcon = QIcon::fromTheme("format-justify-center", QIcon(":/icons/textcenter.png"));
+    const QIcon centerIcon = QIcon::fromTheme("format-justify-center",
+                                              QIcon(":/icons/textcenter.png"));
     actionAlignCenter = new QAction(centerIcon, "&Центр", this);
-    actionAlignCenter->setShortcut(Qt::CTRL + Qt::Key_E);
+    actionAlignCenter->setShortcut(Qt::CTRL | Qt::Key_E);
     actionAlignCenter->setCheckable(true);
     actionAlignCenter->setPriority(QAction::LowPriority);
     const QIcon rightIcon = QIcon::fromTheme("format-justify-right", QIcon(":/icons/textright.png"));
     actionAlignRight = new QAction(rightIcon, "&Право", this);
-    actionAlignRight->setShortcut(Qt::CTRL + Qt::Key_R);
+    actionAlignRight->setShortcut(Qt::CTRL | Qt::Key_R);
     actionAlignRight->setCheckable(true);
     actionAlignRight->setPriority(QAction::LowPriority);
     const QIcon fillIcon = QIcon::fromTheme("format-justify-fill", QIcon(":/icons/textjustify.png"));
     actionAlignJustify = new QAction(fillIcon, "По &ширене", this);
-    actionAlignJustify->setShortcut(Qt::CTRL + Qt::Key_J);
+    actionAlignJustify->setShortcut(Qt::CTRL | Qt::Key_J);
     actionAlignJustify->setCheckable(true);
     actionAlignJustify->setPriority(QAction::LowPriority);
-    const QIcon indentMoreIcon = QIcon::fromTheme("format-indent-more", QIcon(":/icons/format-indent-more.png"));
-    actionIndentMore = formattingToolBar->addAction(indentMoreIcon, "Отступ&+", this, &TextEditor::indent);
-    actionIndentMore->setShortcut(Qt::CTRL + Qt::Key_BracketRight);
+    const QIcon indentMoreIcon = QIcon::fromTheme("format-indent-more",
+                                                  QIcon(":/icons/format-indent-more.png"));
+    actionIndentMore = formattingToolBar->addAction(indentMoreIcon,
+                                                    "Отступ&+",
+                                                    this,
+                                                    &TextEditors::indent);
+    actionIndentMore->setShortcut(Qt::CTRL | Qt::Key_BracketRight);
     actionIndentMore->setPriority(QAction::LowPriority);
-    const QIcon indentLessIcon = QIcon::fromTheme("format-indent-less", QIcon(":/icons/format-indent-less.png"));
-    actionIndentLess = formattingToolBar->addAction(indentLessIcon, "Отступ&-", this, &TextEditor::unindent);
-    actionIndentLess->setShortcut(Qt::CTRL + Qt::Key_BracketLeft);
+    const QIcon indentLessIcon = QIcon::fromTheme("format-indent-less",
+                                                  QIcon(":/icons/format-indent-less.png"));
+    actionIndentLess = formattingToolBar->addAction(indentLessIcon,
+                                                    "Отступ&-",
+                                                    this,
+                                                    &TextEditors::unindent);
+    actionIndentLess->setShortcut(Qt::CTRL | Qt::Key_BracketLeft);
     actionIndentLess->setPriority(QAction::LowPriority);
 
     // Make sure the alignLeft  is always left of the alignRight
     QActionGroup *alignGroup = new QActionGroup(this);
-    connect(alignGroup, &QActionGroup::triggered, this, &TextEditor::textAlign);
+    connect(alignGroup, &QActionGroup::triggered, this, &TextEditors::textAlign);
 
     if (QApplication::isLeftToRight()) {
         alignGroup->addAction(actionAlignLeft);
@@ -263,22 +371,10 @@ void TextEditor::setupTextActions()
 
     QPixmap pix(16, 16);
     pix.fill(Qt::black);
-    actionTextColor = formattingMenu->addAction(pix, "&Цвет...", this, &TextEditor::textColor);
+    actionTextColor = formattingMenu->addAction(pix, "&Цвет...", this, &TextEditors::textColor);
     formattingToolBar->addAction(actionTextColor);
 
     formattingMenu->addSeparator();
-
-//    const QIcon checkboxIcon = QIcon::fromTheme("status-checkbox-checked", QIcon(":/icons/checkbox-checked.png"));
-//    actionToggleCheckState = formattingMenu->addAction(checkboxIcon, "Chec&ked", this, &TextEditor::setChecked);
-//    actionToggleCheckState->setShortcut(Qt::CTRL + Qt::Key_K);
-//    actionToggleCheckState->setCheckable(true);
-//    actionToggleCheckState->setPriority(QAction::LowPriority);
-//    formattingToolBar->addAction(actionToggleCheckState);
-
-//    tb = addToolBar(tr("Format Actions"));
-//    tb->setAllowedAreas(Qt::TopToolBarArea | Qt::BottomToolBarArea);
-//    addToolBarBreak(Qt::TopToolBarArea);
-//    addToolBar(tb);
 
     comboStyle = new QComboBox(formattingToolBar);
     formattingToolBar->addWidget(comboStyle);
@@ -300,12 +396,11 @@ void TextEditor::setupTextActions()
     comboStyle->addItem("Heading 5");
     comboStyle->addItem("Heading 6");
 
-    connect(comboStyle, QOverload<int>::of(&QComboBox::activated), this, &TextEditor::textStyle);
+    connect(comboStyle, QOverload<int>::of(&QComboBox::activated), this, &TextEditors::textStyle);
 
     comboFont = new QFontComboBox(formattingToolBar);
-    comboFont->setCurrentFont(QFont("Times"));
     formattingToolBar->addWidget(comboFont);
-    connect(comboFont, &QComboBox::textActivated, this, &TextEditor::textFamily);
+    connect(comboFont, &QComboBox::textActivated, this, &TextEditors::textFamily);
 
     comboSize = new QComboBox(formattingToolBar);
     comboSize->setObjectName("comboSize");
@@ -315,19 +410,25 @@ void TextEditor::setupTextActions()
     const QList<int> standardSizes = QFontDatabase::standardSizes();
     for (int size : standardSizes)
         comboSize->addItem(QString::number(size));
-    comboSize->setCurrentIndex(standardSizes.indexOf(QApplication::font().pointSize()));
+    comboSize->setCurrentIndex(standardSizes.indexOf(14));
 
-    connect(comboSize, &QComboBox::textActivated, this, &TextEditor::textSize);
+    connect(comboSize, &QComboBox::textActivated, this, &TextEditors::textSize);
 }
 
-void TextEditor::textFamily(const QString &f)
+void TextEditors::textFamily(const QString &f)
 {
+    qDebug() << "textFamily " << f;
+
     QTextCharFormat fmt;
+#if QT_VERSION < 0x060500
     fmt.setFontFamily(f);
+#else
+    fmt.setFontFamilies({f});
+#endif
     mergeFormatOnWordOrSelection(fmt);
 }
 
-void TextEditor::textSize(const QString &p)
+void TextEditors::textSize(const QString &p)
 {
     qreal pointSize = p.toFloat();
     if (p.toFloat() > 0) {
@@ -337,9 +438,11 @@ void TextEditor::textSize(const QString &p)
     }
 }
 
-void TextEditor::textStyle(int styleIndex)
+void TextEditors::textStyle(int styleIndex)
 {
-    QTextCursor cursor = this->textCursor();
+    qDebug() << "textStyle " << currentEditor;
+    QTextCursor cursor = currentEditor->textCursor();
+
     QTextListFormat::Style style = QTextListFormat::ListStyleUndefined;
     QTextBlockFormat::MarkerType marker = QTextBlockFormat::MarkerType::NoMarker;
 
@@ -402,7 +505,8 @@ void TextEditor::textStyle(int styleIndex)
         fmt.setProperty(QTextFormat::FontSizeAdjustment, sizeAdjustment);
         cursor.select(QTextCursor::LineUnderCursor);
         cursor.mergeCharFormat(fmt);
-        this->mergeCurrentCharFormat(fmt);
+
+        currentEditor->mergeCurrentCharFormat(fmt);
     } else {
         blockFmt.setMarker(marker);
         cursor.setBlockFormat(blockFmt);
@@ -421,61 +525,59 @@ void TextEditor::textStyle(int styleIndex)
     cursor.endEditBlock();
 }
 
-void TextEditor::textAlign(QAction *a)
+void TextEditors::textAlign(QAction *a)
 {
     if (a == actionAlignLeft)
-        this->setAlignment(Qt::AlignLeft | Qt::AlignAbsolute);
+        currentEditor->setAlignment(Qt::AlignLeft | Qt::AlignAbsolute);
     else if (a == actionAlignCenter)
-        this->setAlignment(Qt::AlignHCenter);
+        currentEditor->setAlignment(Qt::AlignHCenter);
     else if (a == actionAlignRight)
-        this->setAlignment(Qt::AlignRight | Qt::AlignAbsolute);
+        currentEditor->setAlignment(Qt::AlignRight | Qt::AlignAbsolute);
     else if (a == actionAlignJustify)
-        this->setAlignment(Qt::AlignJustify);
+        currentEditor->setAlignment(Qt::AlignJustify);
 }
 
-void TextEditor::setView(GraphicsView *newView)
+void TextEditors::filePrintPdf()
 {
-    view = newView;
+    QFileDialog fileDialog(this, "Сохранить боковушку в PDF");
+    fileDialog.setAcceptMode(QFileDialog::AcceptSave);
+    fileDialog.setMimeTypeFilters(QStringList("application/pdf"));
+    fileDialog.setDefaultSuffix("pdf");
+    if (fileDialog.exec() != QDialog::Accepted)
+        return;
+    QString fileName = fileDialog.selectedFiles().first();
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setFullPage(true);
+    printer.setPageMargins(QMargins(0, 0, 0, 0));
+    printer.setOutputFileName(fileName);
+    textEditorRight->document()->print(&printer);
+    coinEdit->statusBar()
+        ->showMessage(tr("Боковушка сохранена в \"%1\"").arg(QDir::toNativeSeparators(fileName)),
+                      4000);
 }
 
-void TextEditor::filePrintPdf()
-{
-//    QFileDialog fileDialog(this, tr("Export PDF"));
-//    fileDialog.setAcceptMode(QFileDialog::AcceptSave);
-//    fileDialog.setMimeTypeFilters(QStringList("application/pdf"));
-//    fileDialog.setDefaultSuffix("pdf");
-//    if (fileDialog.exec() != QDialog::Accepted)
-//        return;
-//    QString fileName = fileDialog.selectedFiles().first();
-//    QPrinter printer(QPrinter::HighResolution);
-//    printer.setOutputFormat(QPrinter::PdfFormat);
-//    printer.setOutputFileName(fileName);
-//    textEdit->document()->print(&printer);
-//    statusBar()->showMessage(tr("Exported \"%1\"")
-//                             .arg(QDir::toNativeSeparators(fileName)));
-}
-
-void TextEditor::indent()
+void TextEditors::indent()
 {
     modifyIndentation(1);
 }
 
-void TextEditor::unindent()
+void TextEditors::unindent()
 {
     modifyIndentation(-1);
 }
 
-void TextEditor::modifyIndentation(int amount)
+void TextEditors::modifyIndentation(int amount)
 {
-    QTextCursor cursor = this->textCursor();
+    QTextCursor cursor = currentEditor->textCursor();
+
     cursor.beginEditBlock();
     if (cursor.currentList()) {
         QTextListFormat listFmt = cursor.currentList()->format();
-        // See whether the line above is the list we want to move this item into,
-        // or whether we need a new list.
         QTextCursor above(cursor);
         above.movePosition(QTextCursor::Up);
-        if (above.currentList() && listFmt.indent() + amount == above.currentList()->format().indent()) {
+        if (above.currentList()
+            && listFmt.indent() + amount == above.currentList()->format().indent()) {
             above.currentList()->add(cursor.block());
         } else {
             listFmt.setIndent(listFmt.indent() + amount);
@@ -489,15 +591,17 @@ void TextEditor::modifyIndentation(int amount)
     cursor.endEditBlock();
 }
 
-void TextEditor::currentCharFormatChanged(const QTextCharFormat &format)
+void TextEditors::currentCharFormatChanged(const QTextCharFormat &format)
 {
-//    fontChanged(format.font());
-//    colorChanged(format.foreground().color());
+    qDebug() << "currentCharFormatChanged " << format.fontFamilies();
+
+    fontChanged(format.font());
+    colorChanged(format.foreground().color());
 }
 
-void TextEditor::textColor()
+void TextEditors::textColor()
 {
-    QColor col = QColorDialog::getColor(QTextEdit::textColor(), this);
+    QColor col = QColorDialog::getColor();
     if (!col.isValid())
         return;
     QTextCharFormat fmt;
@@ -506,92 +610,92 @@ void TextEditor::textColor()
     colorChanged(col);
 }
 
-void TextEditor::textUnderline()
+void TextEditors::textUnderline()
 {
     QTextCharFormat fmt;
     fmt.setFontUnderline(actionTextUnderline->isChecked());
     mergeFormatOnWordOrSelection(fmt);
 }
 
-void TextEditor::colorChanged(const QColor &c)
+void TextEditors::colorChanged(const QColor &c)
 {
     QPixmap pix(16, 16);
     pix.fill(c);
     actionTextColor->setIcon(pix);
 }
 
-void TextEditor::textBold()
+void TextEditors::textBold()
 {
     QTextCharFormat fmt;
     fmt.setFontWeight(actionTextBold->isChecked() ? QFont::Bold : QFont::Normal);
     mergeFormatOnWordOrSelection(fmt);
 }
 
-void TextEditor::textItalic()
+void TextEditors::textItalic()
 {
     QTextCharFormat fmt;
     fmt.setFontItalic(actionTextItalic->isChecked());
     mergeFormatOnWordOrSelection(fmt);
 }
 
-void TextEditor::mergeFormatOnWordOrSelection(const QTextCharFormat &format)
+void TextEditors::mergeFormatOnWordOrSelection(const QTextCharFormat &format)
 {
-    QTextCursor cursor = this->textCursor();
+    qDebug() << "mergeFormatOnWordOrSelection " << format.fontFamilies();
+
+    QTextCursor cursor = currentEditor->textCursor();
+    qDebug() << "cursor " << cursor.charFormat().fontFamilies();
+
     if (!cursor.hasSelection())
         cursor.select(QTextCursor::WordUnderCursor);
     cursor.mergeCharFormat(format);
-    this->mergeCurrentCharFormat(format);
+
+    currentEditor->mergeCurrentCharFormat(format);
 }
 
-void TextEditor::cursorPositionChanged()
+void TextEditors::cursorPositionChanged()
 {
-//    alignmentChanged(textEdit->alignment());
-//    QTextList *list = textEdit->textCursor().currentList();
-//    if (list) {
-//        switch (list->format().style()) {
-//        case QTextListFormat::ListDisc:
-//            comboStyle->setCurrentIndex(1);
-//            break;
-//        case QTextListFormat::ListCircle:
-//            comboStyle->setCurrentIndex(2);
-//            break;
-//        case QTextListFormat::ListSquare:
-//            comboStyle->setCurrentIndex(3);
-//            break;
-//        case QTextListFormat::ListDecimal:
-//            comboStyle->setCurrentIndex(6);
-//            break;
-//        case QTextListFormat::ListLowerAlpha:
-//            comboStyle->setCurrentIndex(7);
-//            break;
-//        case QTextListFormat::ListUpperAlpha:
-//            comboStyle->setCurrentIndex(8);
-//            break;
-//        case QTextListFormat::ListLowerRoman:
-//            comboStyle->setCurrentIndex(9);
-//            break;
-//        case QTextListFormat::ListUpperRoman:
-//            comboStyle->setCurrentIndex(10);
-//            break;
-//        default:
-//            comboStyle->setCurrentIndex(-1);
-//            break;
-//        }
-//        switch (textEdit->textCursor().block().blockFormat().marker()) {
-//        case QTextBlockFormat::MarkerType::NoMarker:
-//            actionToggleCheckState->setChecked(false);
-//            break;
-//        case QTextBlockFormat::MarkerType::Unchecked:
-//            comboStyle->setCurrentIndex(4);
-//            actionToggleCheckState->setChecked(false);
-//            break;
-//        case QTextBlockFormat::MarkerType::Checked:
-//            comboStyle->setCurrentIndex(5);
-//            actionToggleCheckState->setChecked(true);
-//            break;
-//        }
-//    } else {
-//        int headingLevel = textEdit->textCursor().blockFormat().headingLevel();
-//        comboStyle->setCurrentIndex(headingLevel ? headingLevel + 10 : 0);
-//    }
+    qDebug() << "cursorPositionChanged";
+    QTextCursor cursor = currentEditor->textCursor();
+    if (cursor.charFormat().fontFamilies().toStringList().isEmpty()) {
+        qDebug() << "new cursor format";
+        QTextCharFormat newFormat;
+        newFormat.setFont(QFont("Times New Roman", 14));
+        cursor.setCharFormat(newFormat);
+    }
+    currentCharFormatChanged(cursor.charFormat());
+
+    alignmentChanged(currentEditor->alignment());
+
+    QTextList *list = currentEditor->textCursor().currentList();
+    if (list) {
+        switch (list->format().style()) {
+        case QTextListFormat::ListDisc:
+            comboStyle->setCurrentIndex(1);
+            break;
+        case QTextListFormat::ListCircle:
+            comboStyle->setCurrentIndex(2);
+            break;
+        case QTextListFormat::ListSquare:
+            comboStyle->setCurrentIndex(3);
+            break;
+        case QTextListFormat::ListDecimal:
+            comboStyle->setCurrentIndex(6);
+            break;
+        case QTextListFormat::ListLowerAlpha:
+            comboStyle->setCurrentIndex(7);
+            break;
+        case QTextListFormat::ListUpperAlpha:
+            comboStyle->setCurrentIndex(8);
+            break;
+        case QTextListFormat::ListLowerRoman:
+            comboStyle->setCurrentIndex(9);
+            break;
+        case QTextListFormat::ListUpperRoman:
+            comboStyle->setCurrentIndex(10);
+            break;
+        default:
+            comboStyle->setCurrentIndex(-1);
+            break;
+        }
+    }
 }

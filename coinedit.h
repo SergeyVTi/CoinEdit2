@@ -1,110 +1,91 @@
 ﻿#pragma once
 
-#include <QMainWindow>
-#if defined(QT_PRINTSUPPORT_LIB)
-#  include <QtPrintSupport/qtprintsupportglobal.h>
-
-#  if QT_CONFIG(printer)
-#    include <QPrinter>
-#  endif
-#endif
-
-#include <QGraphicsView>
-#include <QUrl>
+#include <QtWidgets/QtWidgets>
 #include "celldialog.h"
 #include "texteditor.h"
 
 QT_BEGIN_NAMESPACE
-class QAction;
-class QGraphicsView;
-class QGroupBox;
-class QImage;
-class QLabel;
-class QMenu;
-class QPushButton;
-class QScrollArea;
-class QScrollBar;
-class QScrollArea;
-class QSlider;
-class Coin;
-class GraphicsView;
 class GraphicsScene;
+class GraphicsTextItem;
+class QAbstractTransition;
+class QParallelAnimationGroup;
+class QPrinter;
+class QSignalTransition;
+class QState;
+class QStateMachine;
 QT_END_NAMESPACE
-
-constexpr int RADIUS = 40;
-constexpr int STEP = 4;
 
 class CoinEdit : public QMainWindow
 {
     Q_OBJECT
 public:
     explicit CoinEdit(QWidget *parent = nullptr);
-//    bool loadFile(const QString &);
-    enum SaveFormat {
-        Json, Binary
-    };
 
-//    bool save(CoinEdit::SaveFormat saveFormat);
-//    bool load(CoinEdit::SaveFormat saveFormat);
+    enum SaveFormat { Json, Binary };
 
 public slots:
     void zoomIn(int level = 8);
     void zoomOut(int level = 8);
 
 private slots:
-//    void newFile();
-    void save();
-    void saveAs();
+    void about();
+    void addTableCell(Coin *tableCell, QPoint topLeft);
     void open();
     void print(QPrinter *printer);
+    void printPdf();
     void printPreview();
-    void about();
-    void TODO();
-    void updateStats(QHash<QString, size_t> &typeCounter, QHash<QString, size_t> &subTypeCounter);
-    void addPdf();
-//    void createCellDialog();
-//    void createCellDialog(const QString& cellNum);
+    void save();
+    void saveAs();
+    void deleteTableItem();
+
+signals:
+    void onStartUp();
 
 private:
     void createActions();
-    void createVertGroupBox();
     void drawPitak();
-    void setSectorLines();
-//    void scaleImage(double factor);
-    void setupMatrix();
-    void setupCells();
-
     void read(const QJsonObject &json);
+    void setHeader(const QString &fileName);
+    void setSectorLines();
+    void setupCells();
+    void setupMatrix();
+    void setupStateMachine();
     void write(QJsonObject &json);
 
-
-    GraphicsView *view;
-    QSlider *zoomSlider;
     CellDialog *cellDialog;
-    QGroupBox *vertGroupBox;
     GraphicsScene *scene;
-    QHash<QString, QVector<qreal>> cells;
-    QVector<Coin*> cellsVec;
-//    QHash<QString, Coin*> allCells;
-    qreal scaleFactor = 1;
-    QVector<int> xSize;
-    QVector<int> xStart;
-    QString fileName;
-    SaveFormat saveFormat;
-    QRect workingArea;
+    GraphicsTextItem *header;
+    GraphicsTextItem *textEditorLeftPrintItem;
+    GraphicsTextItem *textEditorRightPrintItem;
+    GraphicsView *view;
+    QAction *mainStateAct;
+    QAction *openAct;
+    QAction *saveAct;
     QGraphicsRectItem *pdfRect1;
     QGraphicsRectItem *pdfRect2;
-    QUrl pdfFileName;
-    TextEditor *textEditor;
-    QGraphicsTextItem *textEditorText;
-//    QTextEdit *textEdit;
-//    QGraphicsProxyWidget *proxyTextEdit;
-
-//    QAction *saveAsAct;
-//    QAction *printAct;
-//    QAction *zoomInAct;
-//    QAction *zoomOutAct;
-//    QAction *normalSizeAct;
-//    QAction *fitToWindowAct;
+    QGroupBox *vertGroupBox;
+    QHash<QString, QVector<qreal>> cells;
+    QMenu *contextMenu;
+    QParallelAnimationGroup *group;
+    QPointF center;
+    QRect workingArea;
+    QSignalTransition *trans;
+    QSlider *zoomSlider;
+    QState *centeredState;
+    QState *mainState;
+    QState *randomState;
+    QState *rootState;
+    QStateMachine *states;
+    QUrl fileName;
+    QTimer *showTimer;
+    QTimer *timer;
+    //    QUrl pdfFileName;
+    QVector<Coin *> cellsVec;
+    QVector<Coin *> tableCells;
+    QVector<QGraphicsTextItem *> cellNumVec;
+    QVector<int> xSize;
+    QVector<int> xStart;
+    SaveFormat saveFormat;
+    TextEditors *textEditors;
+    qreal scaleFactor = 1;
 };
-
