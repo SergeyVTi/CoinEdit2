@@ -16,10 +16,14 @@ public:
 
     void setAllCells(const QHash<QString, Coin *> &newAllCells);
     void setRightTextEditor(TextEditors *textEditors);
+    void showIconDialog();
+    Coin *getCurrentCell();
 
 public slots:
     void updateCellData();
     void updateDialog(Coin *cell);
+    void addCellNumToDialog(const QString cellNum);
+    void updateComboLoadingTypes(QHash<QString, QStringList> types);
 
 private slots:
     void addMultipleCellsButtonClicked();
@@ -30,6 +34,7 @@ private slots:
 signals:
     void toRightTextEditor(Coin *tableCell, QVector<QString> text);
     void updateStats(QHash<QString, size_t> &typeCounter, QHash<QString, size_t> &subTypeCounter);
+    void updateIconDialog(Coin *currentCell);
 
 private:
     void cellData();
@@ -48,7 +53,9 @@ private:
     QGraphicsScene *scene;
     QGraphicsView *view;
     QGroupBox *changeCellLoading;
+    QGroupBox *loadingStats;
     QHash<QString, Coin *> allCells;
+    QHash<QString, QIcon *> comboIcons;
     QHash<QString, QStringList> loadingTypes;
     QHash<QString, size_t> subTypeCounter;
     QHash<QString, size_t> typeCounter;
@@ -60,6 +67,7 @@ private:
     QPushButton *addToRightTextEditor;
     QPushButton *colorButton;
     QPushButton *iconButton;
+    QPushButton *showStatsButton;
     QPushButton *textButton;
     QStringList changeList;
     QTextEdit *editor;
@@ -74,20 +82,22 @@ public:
     IconDialog(QWidget *parent = nullptr);
 
     void setColor(const QColor &newColor);
-
     void setText(const QString &newText);
 
 public slots:
+    void updateIconDialog(Coin *cell);
 
 private slots:
 
 signals:
     void updateDialog(Coin *icon);
+    void setupColor(QPushButton *button);
 
 private:
     QDialogButtonBox *buttonBox;
     QGraphicsScene *scene;
     QGraphicsView *view;
-    QVBoxLayout *mainLayout;
+    QGridLayout *mainLayout;
     QVector<Coin *> iconTypes;
+    QColor color1;
 };

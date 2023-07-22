@@ -26,15 +26,34 @@ public:
         IconDialogItem
     };
 
-    enum IconType { Default, Dot, Exp };
+    enum IconType {
+        Default,
+        Dot,
+        PenSize2blue,
+        PenSize2red,
+        SmallDot,
+        RedCross,
+        Dense6Pattern,
+        Dense7Pattern,
+        HorPattern,
+        VerPattern,
+        CrossPattern,
+        BDiagPattern,
+        FDiagPattern,
+        DiagCrossPattern,
+        z23
+    };
 
 signals:
     void mousePressEv(QMouseEvent *);
     void printCellNum(const QString &cellNum);
     void updateDialog(Coin *thisCell);
+    void cellPosChanged(QPointF pos);
     void mainState();
 
 public:
+    IconType getIconType() const;
+    ItemMode getItemMode() const;
     QString getText() const;
     bool getVisible() const;
     const QColor &getColor() const;
@@ -46,22 +65,22 @@ public:
     void setCellNum(const QString &newCellNum);
     void setColor(const QColor &newColor);
     void setContextMenu(QMenu *newContextMenu);
+    void setDT(const QString &newDT);
+    void setIconType(IconType newIconType);
     void setItemMode(ItemMode newMode);
     void setLoadingSubType(const QString &newLoadingSubType);
     void setLoadingType(const QString &newLoadingType);
     void setPrinting(bool newPrinting);
     void setRadius(int newRadius);
     void setSectors(const QVector<qreal> &newSectors);
+    void setShowSrez(bool newShowSrez);
+    void setSimmHighlight(bool newSimmHighlight);
+    void setSimmMainHighlight(bool newSimmMainHighlight);
     void setStep(int newStep);
+    void setSuzPos(const QString &newSuzPos);
     void setText(const QString &newText);
     void setVisible(bool newVisible);
     void write(QJsonObject &json);
-
-    void setIconType(IconType newIconType);
-
-    ItemMode getItemMode() const;
-
-    IconType getIconType() const;
 
 protected:
     void contextMenuEvent(QGraphicsSceneContextMenuEvent *event) override;
@@ -72,14 +91,16 @@ private:
     void painMainItem(QPainter *painter, const QStyleOptionGraphicsItem *option);
     void paintBackGroundItem(QPainter *painter);
     void paintCellDialogItem(QPainter *painter, const QStyleOptionGraphicsItem *option);
+    void paintDT(QPainter *painter);
+    void paintHex(QPainter *painter);
     void paintHighlight(QPainter *painter, const QStyleOptionGraphicsItem *option);
-    void paintIcon(IconType iconType, QPainter *painter);
+    void paintIcon(IconType iconType, QPainter *painter, const QStyleOptionGraphicsItem *option);
     void paintIconDialogItem(QPainter *painter, const QStyleOptionGraphicsItem *option);
     void paintNumber(QPainter *painter);
     void paintSectorsItem(QPainter *painter);
+    void paintSuzPos(QPainter *painter);
     void paintText(QPainter *painter);
-    void paintTextEditorRightItem(QPainter *painter);
-    void paintHex(QPainter *painter);
+    void paintTextEditorRightItem(QPainter *painter, const QStyleOptionGraphicsItem *option);
 
 private:
     CellDialog *cellDialog;
@@ -88,11 +109,16 @@ private:
     QColor color;
     QMenu *contextMenu;
     QString cellNum;
+    QString dT;
     QString loadingSubType;
     QString loadingType;
+    QString suzPos;
     QString text;
     QVector<qreal> sectors;
     bool printing;
+    bool showSrez;
+    bool simmHighlight = false;
+    bool simmMainHighlight = false;
     bool visible;
     int radius;
     int step;
@@ -101,16 +127,14 @@ private:
 class GraphicsTextItem : public QGraphicsTextItem
 {
 public:
-    //    enum { Type = UserType + 3 };
-    enum Mode { TextEditorRight, TextEditorLeft, Header };
+    enum Mode { TextEditorRight, TextEditorLeft, Header, dTLabel, loadingLabel };
 
     GraphicsTextItem(QGraphicsItem *parent = nullptr);
-    //    int type() const override { return Type; }
     virtual QRectF boundingRect() const override;
     void setMode(Mode newMode);
 
 protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
 
 private:
     Mode mode;

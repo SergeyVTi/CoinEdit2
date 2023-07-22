@@ -16,8 +16,9 @@ CoinEdit::CoinEdit(QWidget *parent)
     setCentralWidget(mainGroupBox);
     mainGroupBox->setLayout(mainLayout);
 
-    //        resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
-    setWindowState(Qt::WindowFullScreen);
+    resize(QGuiApplication::primaryScreen()->availableSize() * 3 / 5);
+    //    resize(QGuiApplication::primaryScreen()->availableSize());
+    //    setWindowState(Qt::WindowFullScreen);
 
     // TextEditor
     textEditors = new TextEditors(this);
@@ -32,12 +33,23 @@ CoinEdit::CoinEdit(QWidget *parent)
     // cellDialog
     cellDialog = new CellDialog(this);
     cellDialog->setRightTextEditor(textEditors);
+    connect(this, &CoinEdit::addCellNumToDialog, cellDialog, &CellDialog::addCellNumToDialog);
+    connect(this,
+            &CoinEdit::updateComboLoadingTypes,
+            cellDialog,
+            &CellDialog::updateComboLoadingTypes);
 
     // Header
     header = new GraphicsTextItem;
     header->setMode(GraphicsTextItem::Header);
 
-    setHeader("Новая картограмма");
+    setHeader("Новая комплектация");
+
+    dTItem = new GraphicsTextItem;
+    dTItem->setMode(GraphicsTextItem::dTLabel);
+
+    loadingItem = new GraphicsTextItem;
+    loadingItem->setMode(GraphicsTextItem::loadingLabel);
 
     // Add status bar
     statusBar()->showMessage("Привет!", 4000);
@@ -56,6 +68,8 @@ CoinEdit::CoinEdit(QWidget *parent)
     scene->addItem(header);
     scene->addItem(textEditorLeftPrintItem);
     scene->addItem(textEditorRightPrintItem);
+    scene->addItem(dTItem);
+    scene->addItem(loadingItem);
 
     QGraphicsProxyWidget *proxy = scene->addWidget(textEditors);
     proxy->setPos(-500, -2600);
@@ -83,9 +97,13 @@ CoinEdit::CoinEdit(QWidget *parent)
 
     drawPitak();
 
+    setupSimmLines();
+
     setupStateMachine();
 
-    open();
+    //    open(); //!
+    //    addTArch();
+    //    addLoadingArch();
 
     emit onStartUp();
 
@@ -104,9 +122,11 @@ void CoinEdit::save()
     if (fileName.fileName().startsWith(QStringLiteral(":/")))
         return saveAs();
 
-    SaveFormat saveFormat = SaveFormat::Json;
+    SaveFormat saveFormat = fileName.fileName().contains(QRegularExpression(".json$"))
+                                ? SaveFormat::Json
+                                : SaveFormat::Binary;
 
-    QFile saveFile(saveFormat == Json ? fileName.fileName() : QStringLiteral("save.dat"));
+    QFile saveFile(fileName.toDisplayString(QUrl::None));
 
     if (!saveFile.open(QIODevice::WriteOnly)) {
         QMessageBox::information(this, "Не могу открыть файл", saveFile.errorString());
@@ -117,37 +137,46 @@ void CoinEdit::save()
 
     write(dataObject);
 
-    saveFile.write(QJsonDocument(dataObject).toJson());
-
-    //      saveFile.write(saveFormat == Json
-    //          ? QJsonDocument(dataObject).toJson()
-    //          : QCborValue::fromJsonValue(dataObject).toCbor());
+    saveFile.write(saveFormat == Json ? QJsonDocument(dataObject).toJson()
+                                      : QCborValue::fromJsonValue(dataObject).toCbor());
 
     setHeader(fileName.fileName());
-    statusBar()->showMessage("Картограмма сохранена в " + fileName.path(), 10000);
+    statusBar()->showMessage("Комплектация сохранена в " + fileName.toDisplayString(QUrl::None),
+                             10000);
 }
 
 void CoinEdit::open()
 {
-    SaveFormat saveFormat = SaveFormat::Json;
+    QFileDialog fileDialog(this, "Открыть комплектация");
 
-    QString openFileName = "save.json";
+    fileDialog.setAcceptMode(QFileDialog::AcceptOpen);
+    QDir path(QDir::currentPath());
+    fileDialog.setDirectory(path);
+    //    fileDialog.setDefaultSuffix("json");
+    //    fileDialog.setNameFilter("JSON (*.json);;binary (*.dat)");
+    fileDialog.setDefaultSuffix("dat");
+    fileDialog.setNameFilter("Binary (*.dat)");
 
-    //    QString openFileName = QFileDialog::getOpenFileName(this,
-    //                                                        "Открыть картограмму",
-    //                                                        QDir::currentPath(),
-    //                                                        "JSON (*.json);;binary (*.dat)");
-
-    fileName = "save.json";
-
-    if (openFileName.isEmpty())
+    if (fileDialog.exec() != QDialog::Accepted)
         return;
 
-    fileName = openFileName;
+    const QString fn = fileDialog.selectedFiles().first();
+    if (fn.isEmpty())
+        return;
+
+    path = fileDialog.directory();
+
+    fileName = path.path() + "/" + QFileInfo(fn).fileName();
+    //    qDebug() << "fileName" << fileName.toDisplayString(QUrl::None);
+    //    fileName = "test.dat";
 
     setHeader(fileName.fileName());
 
-    QFile loadFile(saveFormat == Json ? fileName.fileName() : QStringLiteral("save.dat"));
+    SaveFormat saveFormat = fileName.fileName().contains(QRegularExpression(".json$"))
+                                ? SaveFormat::Json
+                                : SaveFormat::Binary;
+
+    QFile loadFile(fileName.toDisplayString(QUrl::None));
 
     if (!loadFile.open(QIODevice::ReadWrite)) {
         QMessageBox::information(this, "Не могу открыть файл", loadFile.errorString());
@@ -162,7 +191,7 @@ void CoinEdit::open()
 
     read(loadDoc.object());
 
-    statusBar()->showMessage("Открыта картограмма " + fileName.path(), 10000);
+    statusBar()->showMessage("Открыта комплектация " + fileName.toDisplayString(QUrl::None), 10000);
 
     QTimer *timer = new QTimer(this);
     timer->start(300);
@@ -237,52 +266,298 @@ void CoinEdit::setupStateMachine()
     states->start();
 }
 
+void CoinEdit::setupSimmLines()
+{
+    QPen pen(QBrush(Qt::black), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    for (int i = 0; i < 6; i++) {
+        QGraphicsLineItem *simmLine = new QGraphicsLineItem;
+        simmLine->setZValue(6);
+        simmLine->setPen(pen);
+        //        scene->addItem(simmLine);
+        simmLinesVec.append(simmLine);
+    }
+}
+
 void CoinEdit::saveAs()
 {
-    QFileDialog fileDialog(this, "Сохранить картограмму");
+    QFileDialog fileDialog(this, "Сохранить комплектацию");
     fileDialog.setAcceptMode(QFileDialog::AcceptSave);
     QDir path(QDir::currentPath());
     fileDialog.setDirectory(path);
-    fileDialog.setDefaultSuffix("json");
-    fileDialog.setNameFilter("JSON (*.json);;binary (*.dat)");
+    //    fileDialog.setDefaultSuffix("json");
+    //    fileDialog.setNameFilter("JSON (*.json);;binary (*.dat)");
+    fileDialog.setDefaultSuffix("dat");
+    fileDialog.setNameFilter("Binary (*.dat)");
 
     if (fileDialog.exec() != QDialog::Accepted)
         return;
 
     const QString fn = fileDialog.selectedFiles().first();
 
+    path = fileDialog.directory();
     fileName = path.path() + "/" + QFileInfo(fn).fileName();
+    qDebug() << "fileName" << fileName;
 
     save();
+}
+
+void CoinEdit::highlightSimmCells(QPointF cellPos)
+{
+    center = centerCoinPtr->mapToScene(QPointF(1.2 * (RADIUS + STEP), 1.2 * (RADIUS + STEP)));
+    QLineF line(center, cellPos);
+
+    for (auto &cell : simmMap) {
+        cell->setSimmHighlight(false);
+        cell->update();
+    }
+    simmMap.clear();
+
+    for (int stepAngle = 60, i = 1; stepAngle < 360; stepAngle += 60, i++) {
+        simmLinesVec[i]->setLine(line);
+        simmLinesVec[i]->setTransformOriginPoint(center);
+        simmLinesVec[i]->setRotation(stepAngle);
+        simmLinesVec[i]->update();
+
+        QPointF simmPoint = simmLinesVec[i]->mapToScene(simmLinesVec[i]->line().p2());
+
+        QList<QGraphicsItem *> list = scene->items(simmPoint);
+        for (QGraphicsItem *item : qAsConst(list)) {
+            Coin *cell = qgraphicsitem_cast<Coin *>(item);
+            if (cell && cell->getItemMode() == Coin::ItemMode::MainItem) {
+                simmMap[cell->getCellNum()] = cell;
+            }
+        }
+    }
+
+    for (auto &cell : simmMap) {
+        cell->setSimmHighlight(true);
+        cell->update();
+    }
 }
 
 void CoinEdit::deleteTableItem()
 {
     QList<QGraphicsItem *> selectedItems = scene->selectedItems();
     for (QGraphicsItem *item : qAsConst(selectedItems)) {
-        for(auto it = tableCells.begin(); it != tableCells.end(); ){
-           if (*it == qgraphicsitem_cast<Coin *>(item)){
-               tableCells.erase(it);
-               qDebug()<<"deleted";
-               qDebug()<<"tableCells size ";
-               break;
-           }
-           it++;
+        for (auto it = tableCells.begin(); it != tableCells.end();) {
+            if (*it == qgraphicsitem_cast<Coin *>(item)) {
+                tableCells.erase(it);
+                qDebug() << "deleted";
+                break;
+            }
+            it++;
         }
         scene->removeItem(item);
         delete item;
     }
 }
 
+void CoinEdit::addCelltoDialog()
+{
+    qDebug() << "addCelltoDialog";
+    QList<QGraphicsItem *> selectedItems = scene->selectedItems();
+    for (QGraphicsItem *item : qAsConst(selectedItems)) {
+        qDebug() << qgraphicsitem_cast<Coin *>(item)->getCellNum();
+        emit addCellNumToDialog(qgraphicsitem_cast<Coin *>(item)->getCellNum());
+    }
+}
+
+void CoinEdit::addTArch()
+{
+    QFileDialog fileDialog(this, "Открыть архив");
+
+    fileDialog.setAcceptMode(QFileDialog::AcceptOpen);
+    QDir path(QDir::currentPath());
+    fileDialog.setDirectory(path);
+    fileDialog.setDefaultSuffix("csv");
+    fileDialog.setNameFilter("csv (*.csv)");
+
+    if (fileDialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString fn = fileDialog.selectedFiles().first();
+    if (fn.isEmpty())
+        return;
+
+    path = fileDialog.directory();
+
+    archTFileName = path.path() + "/" + QFileInfo(fn).fileName();
+    //    archTFileName = "2023_05_28.csv";
+
+    QFile loadFile(archTFileName.toDisplayString(QUrl::None));
+
+    if (!loadFile.open(QIODevice::ReadWrite)) {
+        QMessageBox::information(this, "Не могу открыть файл", loadFile.errorString());
+        return;
+    }
+
+    QTextStream in(&loadFile);
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+
+        if (line.contains("A4G4L")) {
+            QString date = line.section(';', 0, 0);
+            QString time = line.section(';', 1, 1);
+
+            dTItem->setHtml("<p align=\"center\"><span style=\"font-family:'Times New "
+                            "Roman'; font-size:20pt\">"
+                            + QString("Архив подогревов от ") + date + " "
+                            + time.remove(time.size() - 7, 7) + "</span></p>");
+            break;
+        }
+    }
+
+    QRegularExpression regExSUZnum("([^0-9]|^)([(])(?<cell>\\d\\d-\\d\\d)([)])([^0-9]|$)");
+    QRegularExpression regExdT("([^0-9]|^)(?<cell>\\d\\d-\\d\\d)([^0-9]|$)");
+
+    in.seek(0);
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+
+        QRegularExpressionMatchIterator i = regExSUZnum.globalMatch(line);
+        while (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            QString suzNum = match.captured("cell");
+            QString suzPos = line.section(';', 4, 4);
+            allCells[suzNum]->setSuzPos(suzPos);
+            allCells[suzNum]->setIconType(Coin::IconType::PenSize2red);
+        }
+
+        if (line.contains("A4D")) {
+            QRegularExpressionMatchIterator i = regExdT.globalMatch(line);
+            while (i.hasNext()) {
+                QRegularExpressionMatch match = i.next();
+                QString dTCellNum = match.captured("cell");
+                QString dT = line.section(';', 4, 4);
+                (dT.size() == 7) ? allCells[dTCellNum]->setDT(dT.remove(dT.size() - 3, 3))
+                                 : allCells[dTCellNum]->setDT(dT.remove(dT.size() - 2, 2));
+            }
+        }
+    }
+}
+
+void CoinEdit::addLoadingArch()
+{
+    QUrl typesFileName("ТИПЫ.txt");
+
+    QFile typesFile(typesFileName.toDisplayString(QUrl::None));
+
+    if (!typesFile.open(QIODevice::ReadWrite)) {
+        QMessageBox::information(this,
+                                 "Не могу открыть файл: "
+                                     + typesFileName.toDisplayString(QUrl::None),
+                                 typesFile.errorString());
+        return;
+    }
+
+    QHash<QString, QString> typesMap;
+    QHash<QString, QString> csMap;
+    bool isType = true;
+
+    QTextStream typesIn(&typesFile);
+    typesIn.setEncoding(QStringConverter::System);
+    QString typesInStr = typesIn.readAll();
+    if (!typesInStr.contains("ТИПЫ:") || !typesInStr.contains("ЦС:")) {
+        qDebug() << typesFileName << "is empty";
+        typesIn << "Задайте типы кассет, цс в формате (\"название\" номер)\n"
+                   "ТИПЫ:\n\n"
+                   "ЦС:";
+        return;
+    }
+
+    typesIn.seek(0);
+    while (!typesIn.atEnd()) {
+        QString line = typesIn.readLine();
+        if (line.isEmpty())
+            continue;
+
+        if (line.contains("ТИПЫ:")) {
+            isType = true;
+        } else if (line.contains("ЦС:")) {
+            isType = false;
+        }
+
+        QString type = line.section(' ', 0, 0);
+        type.remove('"');
+        QString typeNum = line.section(' ', 1, 1);
+
+        isType ? typesMap[typeNum] = type : csMap[typeNum] = type;
+    }
+
+    QFileDialog fileDialog(this, "Открыть архив");
+
+    fileDialog.setAcceptMode(QFileDialog::AcceptOpen);
+    QDir path(QDir::currentPath());
+    fileDialog.setDirectory(path);
+    fileDialog.setDefaultSuffix("txt");
+    fileDialog.setNameFilter("txt (*.txt)");
+
+    if (fileDialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString fn = fileDialog.selectedFiles().first();
+    if (fn.isEmpty())
+        return;
+
+    path = fileDialog.directory();
+
+    archLoadingFileName = path.path() + "/" + QFileInfo(fn).fileName();
+    //    archLoadingFileName = "20230601.txt";
+
+    QFile loadingFile(archLoadingFileName.toDisplayString(QUrl::None));
+
+    if (!loadingFile.open(QIODevice::ReadWrite)) {
+        QMessageBox::information(this, "Не могу открыть файл", loadingFile.errorString());
+        return;
+    }
+
+    QRegularExpression regExNum("([^0-9]|^)(?<cell>\\d\\d-\\d\\d)([^0-9]|$)");
+    QHash<QString, QStringList> loadingTypes;
+
+    QTextStream loadingsIn(&loadingFile);
+    bool isCS;
+    while (!loadingsIn.atEnd()) {
+        QString line = loadingsIn.readLine();
+        //        qDebug() << line;
+
+        QRegularExpressionMatchIterator i = regExNum.globalMatch(line);
+        while (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            QString cellNum = match.captured("cell");
+            QString loadingNum = line.section('\t', 2, 2);
+            line.contains("ЦС") ? isCS = true : isCS = false;
+            //            qDebug() << "loading" << cellNum << loadingNum << isCS;
+            if (allCells[cellNum]) {
+                isCS ? allCells[cellNum]->setLoadingSubType(csMap[loadingNum])
+                     : allCells[cellNum]->setLoadingType(typesMap[loadingNum]);
+            }
+        }
+    }
+
+    loadingItem->setHtml(
+        "<p align=\"center\"><span style=\"font-family:'Times New "
+        "Roman'; font-size:20pt\">"
+        + QString("Архив загрузки ")
+        //                         + archLoadingFileName.toDisplayString(QUrl::None) + +"</span></p>");
+        + archLoadingFileName.fileName() + "</span></p>");
+
+    for (auto &cell : cellsVec) {
+        loadingTypes[cell->getLoadingType()].append(cell->getLoadingSubType());
+        cell->setText(cell->getLoadingSubType());
+    }
+
+    for (auto &list : loadingTypes) {
+        list.removeDuplicates();
+    }
+
+    showSrezAct->setChecked(true);
+    emit updateComboLoadingTypes(loadingTypes);
+}
+
 void CoinEdit::drawPitak()
 {
     scene->setBackgroundBrush(QBrush(Qt::darkGray));
 
-    constexpr int RADIUS = 40;
-    constexpr int STEP = 4;
-    constexpr int indent = 70;
-    constexpr int vertIndent = 30;
-    constexpr qreal k = 1.2;
     const int xStep = qSin(qDegreesToRadians(60.0)) * RADIUS + STEP;
     const int yStep = RADIUS + qSin(qDegreesToRadians(30.0)) * RADIUS + STEP * 1.5;
     const int maxCoinInRow = static_cast<qreal>(*std::max_element(xSize.begin(), xSize.end()));
@@ -369,8 +644,6 @@ void CoinEdit::drawPitak()
         }
     }
 
-    QHash<QString, Coin *> allCells;
-
     for (int y = 1; y <= xSize.size(); y++) {
         if (xSize[y - 1] == 0)
             continue;
@@ -392,6 +665,7 @@ void CoinEdit::drawPitak()
             item->setRadius(RADIUS);
             item->setStep(STEP);
             item->setZValue(3);
+            item->setContextMenu(contexMenuMainItem);
 
             QString cellNum = (y < 10 ? ("0" + QString::number(y)) : QString::number(y)) + "-"
                               + ((x + 6 + xStart[y - 1]) < 10
@@ -402,7 +676,7 @@ void CoinEdit::drawPitak()
             item->setCellDialog(cellDialog);
 
             if (cells.contains(cellNum))
-               sectorsItem->setSectors(cells[cellNum]);
+                sectorsItem->setSectors(cells[cellNum]);
 
             scene->addItem(sectorsItem);
 
@@ -410,8 +684,10 @@ void CoinEdit::drawPitak()
             item->setLoadingType("Без загрузки");
             item->setLoadingSubType("");
 
-            if (cellNum == "19-34")
-               center = item->pos();
+            if (cellNum == "19-34") {
+                center = item->pos();
+                centerCoinPtr = item;
+            }
 
             cellsVec.append(item);
             allCells[cellNum] = item;
@@ -421,6 +697,7 @@ void CoinEdit::drawPitak()
                 statusBar()->showMessage(cellNum, 5000);
             });
             connect(item, &Coin::mainState, [&] { mainStateAct->trigger(); });
+            connect(item, &Coin::cellPosChanged, this, &CoinEdit::highlightSimmCells);
 
             mainState->assignProperty(item, "pos", item->pos());
         }
@@ -689,6 +966,7 @@ void CoinEdit::setHeader(const QString &fileName)
 {
     QString headerText = fileName;
     headerText.remove(QRegularExpression(".json$"));
+    headerText.remove(QRegularExpression(".dat$"));
     header->setHtml("<p align=\"center\"><span style=\"font-family:'Times New "
                     "Roman'; font-size:60pt\">"
                     + headerText + "</span></p>");
@@ -699,10 +977,19 @@ void CoinEdit::read(const QJsonObject &json)
     if (json.contains("Ячейки") && json["Ячейки"].isArray()) {
         QJsonArray cellsArray = json["Ячейки"].toArray();
 
+        QHash<QString, QStringList> loadingTypes;
         for (int i = 0; i < cellsVec.size(); i++) {
             QJsonObject cellObject = cellsArray[i].toObject();
             cellsVec[i]->read(cellObject);
+
+            loadingTypes[cellsVec[i]->getLoadingType()].append(cellsVec[i]->getLoadingSubType());
         }
+
+        for (auto &list : loadingTypes) {
+            list.removeDuplicates();
+        }
+
+        emit updateComboLoadingTypes(loadingTypes);
     }
 
     if (json.contains("Ячейки на боковушке") && json["Ячейки на боковушке"].isArray()) {
@@ -719,7 +1006,7 @@ void CoinEdit::read(const QJsonObject &json)
             Coin *coin = new Coin;
             coin->setItemMode(Coin::ItemMode::TextEditorRightItem);
             coin->setZValue(3);
-            coin->setContextMenu(contextMenu);
+            coin->setContextMenu(contexMenuEditorItem);
             coin->read(cellObject);
             scene->addItem(coin);
             tableCells.append(coin);
@@ -731,7 +1018,7 @@ void CoinEdit::read(const QJsonObject &json)
         textEditors->read(textEditorDataObject);
     }
 
-    view->setInteractive(true);//hz
+    view->setInteractive(true); //hz
 }
 
 void CoinEdit::write(QJsonObject &json)
@@ -758,34 +1045,36 @@ void CoinEdit::write(QJsonObject &json)
     json["Текст"] = textEditorObject;
 }
 
-void CoinEdit::print(QPrinter *printer)
+void CoinEdit::render(QPrinter *printer)
 {
     QPainter painter(printer);
-    QRect viewport = view->viewport()->rect();
-    qDebug() << "viewport " << viewport;
 
     QRect sceneRect = scene->itemsBoundingRect().toRect();
-    qDebug() << "scene " << sceneRect;
-
-    QRect viewRect = view->contentsRect();
-    qDebug() << "view " << viewRect;
+    qDebug() << "sceneRect" << sceneRect;
 
     QRect mappedRect = view->mapFromScene(sceneRect).boundingRect();
-    qDebug() << "mappedRect " << mappedRect;
+    qDebug() << "mappedRect" << mappedRect;
 
     QRectF target = QRectF(0, 0, printer->width(), printer->height());
-    qDebug() << "target " << target;
+    qDebug() << "target" << target;
 
     // do before printing
     scene->setBackgroundBrush(Qt::white);
+    QString cellNum = cellDialog->getCurrentCell()->getCellNum();
     for (auto cell : cellsVec) {
         cell->setPrinting(true);
+        if (cell->getCellNum() == cellNum)
+            cell->setSimmMainHighlight(false);
     }
     textEditors->hide();
     textEditorLeftPrintItem->show();
     textEditorLeftPrintItem->setHtml(textEditors->getLeftTextHtml());
     textEditorRightPrintItem->show();
     textEditorRightPrintItem->setHtml(textEditors->getRightTextHtml());
+
+    for (auto &cell : simmMap) {
+        cell->setSimmHighlight(false);
+    }
 
     view->render(&painter,
                  target,
@@ -796,6 +1085,8 @@ void CoinEdit::print(QPrinter *printer)
     scene->setBackgroundBrush(QBrush(Qt::darkGray));
     for (auto cell : cellsVec) {
         cell->setPrinting(false);
+        if (cell->getCellNum() == cellNum)
+            cell->setSimmMainHighlight(true);
     }
     textEditors->show();
     textEditorLeftPrintItem->hide();
@@ -812,40 +1103,15 @@ void CoinEdit::printPdf()
     if (fileName.isEmpty())
         return;
 
-    QString pdfFileName = fileName.fileName().remove(QRegularExpression(".json$")) + ".pdf";
+    QString pdfFileName = fileName.fileName().remove(QRegularExpression(".dat$")) + ".pdf";
+    //    pdfFileName = fileName.fileName().remove(QRegularExpression(".json$")) + ".pdf";
     printer.setOutputFileName(pdfFileName);
     printer.setOutputFormat(QPrinter::PdfFormat);
     printer.setFullPage(true);
-    QPainter painter(&printer);
 
-    QRect sceneRect = scene->itemsBoundingRect().toRect();
-    QRectF target = QRectF(0, 0, printer.width(), printer.height());
-    QRect mappedRect = view->mapFromScene(sceneRect).boundingRect();
+    render(&printer);
 
-    scene->setBackgroundBrush(Qt::white);
-    for (auto cell : cellsVec) {
-        cell->setPrinting(true);
-    }
-    textEditors->hide();
-    textEditorLeftPrintItem->show();
-    textEditorLeftPrintItem->setHtml(textEditors->getLeftTextHtml());
-    textEditorRightPrintItem->show();
-    textEditorRightPrintItem->setHtml(textEditors->getRightTextHtml());
-
-    view->render(&painter,
-                 target,
-                 mappedRect.marginsRemoved(QMargins(0, 0, 0, 0)),
-                 Qt::KeepAspectRatio);
-
-    scene->setBackgroundBrush(QBrush(Qt::darkGray));
-    for (auto cell : cellsVec) {
-        cell->setPrinting(false);
-    }
-    textEditors->show();
-    textEditorLeftPrintItem->hide();
-    textEditorRightPrintItem->hide();
-
-    statusBar()->showMessage(tr("Картограмма сохранена в \"%1\"")
+    statusBar()->showMessage(tr("Комплектация сохранена в \"%1\"")
                                  .arg(QDir::toNativeSeparators(pdfFileName)),
                              10000);
 }
@@ -856,7 +1122,7 @@ void CoinEdit::printPreview()
     printer.setPageOrientation(QPageLayout::Landscape);
     printer.setFullPage(true);
     QPrintPreviewDialog preview(&printer, this);
-    connect(&preview, &QPrintPreviewDialog::paintRequested, this, &CoinEdit::print);
+    connect(&preview, &QPrintPreviewDialog::paintRequested, this, &CoinEdit::render);
     preview.exec();
 }
 
@@ -875,7 +1141,7 @@ void CoinEdit::about()
     QMessageBox::about(this,
                        "О программе",
                        "<p>Программа <b>CoinEdit 2</b> предназначна для составления"
-                       " картограмм перегрузки реактра Р.</p>"
+                       " комплектаций загрузки реактора Р.</p>"
                        "<p>Разработал Тихонов С.</p>"
                        "<p>stikhon88@gmail.com</p>");
 }
@@ -883,7 +1149,7 @@ void CoinEdit::about()
 void CoinEdit::addTableCell(Coin *tableCell, QPoint topLeft)
 {
     tableCell->setZValue(3);
-    tableCell->setContextMenu(contextMenu);
+    tableCell->setContextMenu(contexMenuEditorItem);
     topLeft.rx() += 2369;
     topLeft.ry() += -2482;
     tableCell->setPos(topLeft);
@@ -901,7 +1167,7 @@ void CoinEdit::createActions()
     const QIcon openIcon = QIcon::fromTheme("document-open", QIcon(":/icons/open.png"));
     openAct = new QAction(openIcon, "&Открыть", this);
     openAct->setShortcuts(QKeySequence::Open);
-    openAct->setStatusTip("Открыть картограмму");
+    openAct->setStatusTip("Открыть комплектацию");
     connect(openAct, &QAction::triggered, this, &CoinEdit::open);
     fileMenu->addAction(openAct);
     fileToolBar->addAction(openAct);
@@ -910,7 +1176,7 @@ void CoinEdit::createActions()
     const QIcon saveIcon = QIcon::fromTheme("document-save", QIcon(":/icons/save.png"));
     saveAct = new QAction(saveIcon, "Со&хранить", this);
     saveAct->setShortcuts(QKeySequence::Save);
-    saveAct->setStatusTip("Сохранить картограмму");
+    saveAct->setStatusTip("Сохранить комплектацию");
     connect(saveAct, &QAction::triggered, this, &CoinEdit::save);
     fileMenu->addAction(saveAct);
     fileToolBar->addAction(saveAct);
@@ -922,13 +1188,13 @@ void CoinEdit::createActions()
                                              this,
                                              &CoinEdit::saveAs);
     saveAsAct->setShortcuts(QKeySequence::SaveAs);
-    saveAsAct->setStatusTip("Сохранить картограмму под новым именем");
+    saveAsAct->setStatusTip("Сохранить комплектацию под новым именем");
 
     // Print
     const QIcon printIcon = QIcon::fromTheme("document-print", QIcon(":/icons/print.png"));
     QAction *printAct = fileMenu->addAction(printIcon, "&Печать...", this, &CoinEdit::printPreview);
     printAct->setShortcuts(QKeySequence::Print);
-    printAct->setStatusTip("Распечатать картограмму");
+    printAct->setStatusTip("Распечатать комплектацию");
     fileToolBar->addAction(printAct);
 
     // Pdf Print
@@ -938,7 +1204,7 @@ void CoinEdit::createActions()
                                                 this,
                                                 &CoinEdit::printPdf);
     exportPdfAct->setShortcut(Qt::CTRL | Qt::Key_F);
-    exportPdfAct->setStatusTip("Распечатать картограмму в PDF");
+    exportPdfAct->setStatusTip("Распечатать комплектацию в PDF");
     fileMenu->addAction(exportPdfAct);
     fileToolBar->addAction(exportPdfAct);
 
@@ -965,6 +1231,39 @@ void CoinEdit::createActions()
     zoomInAct->setStatusTip("Приблизить");
     zoomToolBar->addAction(zoomInAct);
 
+    //Srez
+    QMenu *srezMenu = menuBar()->addMenu("Срез");
+    QAction *addTArchAct = new QAction("Добавить срез dT");
+    srezMenu->addAction(addTArchAct);
+    addTArchAct->setShortcut(Qt::CTRL | Qt::Key_W);
+    connect(addTArchAct, &QAction::triggered, this, &CoinEdit::addTArch);
+
+    QAction *addLoadingArchAct = new QAction("Добавить срез загрузки");
+    srezMenu->addAction(addLoadingArchAct);
+    addLoadingArchAct->setShortcut(Qt::CTRL | Qt::Key_E);
+    connect(addLoadingArchAct, &QAction::triggered, this, &CoinEdit::addLoadingArch);
+
+    srezMenu->addSeparator();
+
+    showSrezAct = new QAction("Показать срез");
+    showSrezAct->setCheckable(true);
+    showSrezAct->setChecked(false);
+    srezMenu->addAction(showSrezAct);
+    connect(showSrezAct, &QAction::toggled, [&] {
+        for (auto &cell : cellsVec) {
+            showSrezAct->isChecked() ? cell->setShowSrez(true) : cell->setShowSrez(false);
+            cell->update();
+        }
+
+        if (showSrezAct->isChecked()) {
+            dTItem->show();
+            loadingItem->show();
+        } else {
+            dTItem->hide();
+            loadingItem->hide();
+        }
+    });
+
     // Боковушка
     textEditors->setupEditActions();
     //
@@ -983,8 +1282,16 @@ void CoinEdit::createActions()
     helpMenu->addAction("&О программе", this, &CoinEdit::about);
     helpMenu->addAction("About &Qt", &QApplication::aboutQt);
 
-    // Context menu
-    contextMenu = new QMenu;
+    // Context menus
+    contexMenuEditorItem = new QMenu;
     const QIcon deleteTableIcon = QIcon(":/icons/delete.png");
-    contextMenu->addAction(deleteTableIcon, "Удалить", this, &CoinEdit::deleteTableItem);
+    contexMenuEditorItem->addAction(deleteTableIcon, "Удалить", this, &CoinEdit::deleteTableItem);
+
+    contexMenuMainItem = new QMenu;
+    const QIcon addCelltoDialogIcon = QIcon(":/icons/plus-sign.png");
+    contexMenuMainItem->addAction(addCelltoDialogIcon,
+                                  "Добавить в список",
+                                  this,
+                                  &CoinEdit::addCelltoDialog);
+    contexMenuMainItem->addAction(showSrezAct);
 }

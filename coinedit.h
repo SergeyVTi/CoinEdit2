@@ -29,17 +29,23 @@ public slots:
 
 private slots:
     void about();
+    void addCelltoDialog();
+    void addTArch();
+    void addLoadingArch();
     void addTableCell(Coin *tableCell, QPoint topLeft);
+    void deleteTableItem();
+    void highlightSimmCells(QPointF cellPos);
     void open();
-    void print(QPrinter *printer);
     void printPdf();
     void printPreview();
+    void render(QPrinter *printer);
     void save();
     void saveAs();
-    void deleteTableItem();
 
 signals:
     void onStartUp();
+    void addCellNumToDialog(const QString cellNum);
+    void updateComboLoadingTypes(QHash<QString, QStringList> types);
 
 private:
     void createActions();
@@ -50,22 +56,31 @@ private:
     void setupCells();
     void setupMatrix();
     void setupStateMachine();
+    void setupSimmLines();
     void write(QJsonObject &json);
 
+    //    QUrl pdfFileName;
     CellDialog *cellDialog;
+    Coin *centerCoinPtr;
     GraphicsScene *scene;
+    GraphicsTextItem *dTItem;
     GraphicsTextItem *header;
+    GraphicsTextItem *loadingItem;
     GraphicsTextItem *textEditorLeftPrintItem;
     GraphicsTextItem *textEditorRightPrintItem;
     GraphicsView *view;
     QAction *mainStateAct;
     QAction *openAct;
     QAction *saveAct;
+    QAction *showSrezAct;
     QGraphicsRectItem *pdfRect1;
     QGraphicsRectItem *pdfRect2;
     QGroupBox *vertGroupBox;
+    QHash<QString, Coin *> allCells;
+    QHash<QString, Coin *> simmMap;
     QHash<QString, QVector<qreal>> cells;
-    QMenu *contextMenu;
+    QMenu *contexMenuEditorItem;
+    QMenu *contexMenuMainItem;
     QParallelAnimationGroup *group;
     QPointF center;
     QRect workingArea;
@@ -76,16 +91,24 @@ private:
     QState *randomState;
     QState *rootState;
     QStateMachine *states;
-    QUrl fileName;
     QTimer *showTimer;
     QTimer *timer;
-    //    QUrl pdfFileName;
+    QUrl fileName;
+    QUrl archTFileName;
+    QUrl archLoadingFileName;
     QVector<Coin *> cellsVec;
     QVector<Coin *> tableCells;
+    QVector<QGraphicsLineItem *> simmLinesVec;
     QVector<QGraphicsTextItem *> cellNumVec;
     QVector<int> xSize;
     QVector<int> xStart;
     SaveFormat saveFormat;
     TextEditors *textEditors;
     qreal scaleFactor = 1;
+
+    const int RADIUS = 40;
+    const int STEP = 4;
+    const int indent = 70;
+    const int vertIndent = 30;
+    const qreal k = 1.2;
 };

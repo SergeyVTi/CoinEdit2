@@ -81,7 +81,7 @@ void TextEditors::doOnStartUp()
     format.setFont(QFont("Times New Roman", 14));
     textEditorRight->mergeCurrentCharFormat(format);
     textEditorLeft->mergeCurrentCharFormat(format);
-    qDebug() << "on startup";
+    //    qDebug() << "on startup";
 }
 
 void TextEditors::read(const QJsonObject &json)
@@ -130,7 +130,7 @@ void TextEditors::clipboardDataChanged()
 
 void TextEditors::fontChanged(const QFont &f)
 {
-    qDebug() << "fontChanged " << f.family();
+    //    qDebug() << "fontChanged " << f.family();
     //    comboFont->setCurrentIndex(comboFont->findText(QFontInfo(f).family()));
     //    !!!
     comboFont->setCurrentIndex(comboFont->findText(f.family()));
@@ -270,7 +270,6 @@ void TextEditors::setupTextActions()
 
     const QIcon boldIcon = QIcon::fromTheme("format-text-bold", QIcon(":/icons/textbold.png"));
     actionTextBold = formattingMenu->addAction(boldIcon, "&Жирный", this, &TextEditors::textBold);
-    actionTextBold->setShortcut(Qt::CTRL | Qt::Key_B);
     actionTextBold->setPriority(QAction::LowPriority);
     QFont bold;
     bold.setBold(true);
@@ -284,7 +283,6 @@ void TextEditors::setupTextActions()
                                                  this,
                                                  &TextEditors::textItalic);
     actionTextItalic->setPriority(QAction::LowPriority);
-    actionTextItalic->setShortcut(Qt::CTRL | Qt::Key_I);
     QFont italic;
     italic.setItalic(true);
     actionTextItalic->setFont(italic);
@@ -297,7 +295,6 @@ void TextEditors::setupTextActions()
                                                     "&Подчёркнутый",
                                                     this,
                                                     &TextEditors::textUnderline);
-    actionTextUnderline->setShortcut(Qt::CTRL | Qt::Key_U);
     actionTextUnderline->setPriority(QAction::LowPriority);
     QFont underline;
     underline.setUnderline(true);
@@ -309,23 +306,19 @@ void TextEditors::setupTextActions()
 
     const QIcon leftIcon = QIcon::fromTheme("format-justify-left", QIcon(":/icons/textleft.png"));
     actionAlignLeft = new QAction(leftIcon, "&Лево", this);
-    actionAlignLeft->setShortcut(Qt::CTRL | Qt::Key_L);
     actionAlignLeft->setCheckable(true);
     actionAlignLeft->setPriority(QAction::LowPriority);
     const QIcon centerIcon = QIcon::fromTheme("format-justify-center",
                                               QIcon(":/icons/textcenter.png"));
     actionAlignCenter = new QAction(centerIcon, "&Центр", this);
-    actionAlignCenter->setShortcut(Qt::CTRL | Qt::Key_E);
     actionAlignCenter->setCheckable(true);
     actionAlignCenter->setPriority(QAction::LowPriority);
     const QIcon rightIcon = QIcon::fromTheme("format-justify-right", QIcon(":/icons/textright.png"));
     actionAlignRight = new QAction(rightIcon, "&Право", this);
-    actionAlignRight->setShortcut(Qt::CTRL | Qt::Key_R);
     actionAlignRight->setCheckable(true);
     actionAlignRight->setPriority(QAction::LowPriority);
     const QIcon fillIcon = QIcon::fromTheme("format-justify-fill", QIcon(":/icons/textjustify.png"));
     actionAlignJustify = new QAction(fillIcon, "По &ширене", this);
-    actionAlignJustify->setShortcut(Qt::CTRL | Qt::Key_J);
     actionAlignJustify->setCheckable(true);
     actionAlignJustify->setPriority(QAction::LowPriority);
     const QIcon indentMoreIcon = QIcon::fromTheme("format-indent-more",
@@ -334,7 +327,6 @@ void TextEditors::setupTextActions()
                                                     "Отступ&+",
                                                     this,
                                                     &TextEditors::indent);
-    actionIndentMore->setShortcut(Qt::CTRL | Qt::Key_BracketRight);
     actionIndentMore->setPriority(QAction::LowPriority);
     const QIcon indentLessIcon = QIcon::fromTheme("format-indent-less",
                                                   QIcon(":/icons/format-indent-less.png"));
@@ -342,7 +334,6 @@ void TextEditors::setupTextActions()
                                                     "Отступ&-",
                                                     this,
                                                     &TextEditors::unindent);
-    actionIndentLess->setShortcut(Qt::CTRL | Qt::Key_BracketLeft);
     actionIndentLess->setPriority(QAction::LowPriority);
 
     // Make sure the alignLeft  is always left of the alignRight
@@ -417,7 +408,7 @@ void TextEditors::setupTextActions()
 
 void TextEditors::textFamily(const QString &f)
 {
-    qDebug() << "textFamily " << f;
+    //    qDebug() << "textFamily " << f;
 
     QTextCharFormat fmt;
 #if QT_VERSION < 0x060500
@@ -440,7 +431,7 @@ void TextEditors::textSize(const QString &p)
 
 void TextEditors::textStyle(int styleIndex)
 {
-    qDebug() << "textStyle " << currentEditor;
+    //    qDebug() << "textStyle " << currentEditor;
     QTextCursor cursor = currentEditor->textCursor();
 
     QTextListFormat::Style style = QTextListFormat::ListStyleUndefined;
@@ -593,7 +584,7 @@ void TextEditors::modifyIndentation(int amount)
 
 void TextEditors::currentCharFormatChanged(const QTextCharFormat &format)
 {
-    qDebug() << "currentCharFormatChanged " << format.fontFamilies();
+    //    qDebug() << "currentCharFormatChanged " << format.fontFamilies();
 
     fontChanged(format.font());
     colorChanged(format.foreground().color());
@@ -640,10 +631,10 @@ void TextEditors::textItalic()
 
 void TextEditors::mergeFormatOnWordOrSelection(const QTextCharFormat &format)
 {
-    qDebug() << "mergeFormatOnWordOrSelection " << format.fontFamilies();
+    //    qDebug() << "mergeFormatOnWordOrSelection " << format.fontFamilies();
 
     QTextCursor cursor = currentEditor->textCursor();
-    qDebug() << "cursor " << cursor.charFormat().fontFamilies();
+    //    qDebug() << "cursor " << cursor.charFormat().fontFamilies();
 
     if (!cursor.hasSelection())
         cursor.select(QTextCursor::WordUnderCursor);
@@ -654,10 +645,10 @@ void TextEditors::mergeFormatOnWordOrSelection(const QTextCharFormat &format)
 
 void TextEditors::cursorPositionChanged()
 {
-    qDebug() << "cursorPositionChanged";
+    //    qDebug() << "cursorPositionChanged";
     QTextCursor cursor = currentEditor->textCursor();
     if (cursor.charFormat().fontFamilies().toStringList().isEmpty()) {
-        qDebug() << "new cursor format";
+        //        qDebug() << "new cursor format";
         QTextCharFormat newFormat;
         newFormat.setFont(QFont("Times New Roman", 14));
         cursor.setCharFormat(newFormat);

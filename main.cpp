@@ -5,7 +5,9 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QGuiApplication::setApplicationDisplayName("CoinEdit 2");
+    app.setApplicationVersion("1.08");
+    app.setWindowIcon(QIcon(":/icons/icon.png"));
+    QGuiApplication::setApplicationDisplayName("CoinEdit 2 v" + app.applicationVersion());
 
     CoinEdit coinEdit;
     coinEdit.show();
